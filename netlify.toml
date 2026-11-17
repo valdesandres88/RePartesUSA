@@ -17,6 +17,10 @@
   to = "/.netlify/functions/cleanup"
   status = 200
 [[redirects]]
+  from = "/ads.txt"
+  to = "/.netlify/functions/ads-text"
+  status = 200
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
