@@ -33,10 +33,44 @@ function commercialOffers(placement){
  if(!shown.length)return '';
  return '<section class="section offers"><div class="eyebrow">Commercial partners</div><h2>Useful links from partners</h2><p>Paid advertising and affiliate links are identified. RePartes USA may earn a commission from qualifying purchases made through affiliate links, at no extra charge to you. External providers set their own prices and terms.</p><div class="offer-grid">'+shown.map(x=>'<article class="offer-card"><div class="offer-kind">'+(x.kind==='affiliate'?'Affiliate link':'Sponsored placement')+'</div><h3>'+esc(x.title)+'</h3><p>'+esc(x.description)+'</p><a class="secondary" href="'+esc(x.url)+'" target="_blank" rel="sponsored nofollow noopener noreferrer">Visit partner website ↗</a></article>').join('')+'</div></section>';
 }
+// Keep the affiliate offer draft across auth refreshes and mobile tab reloads.
+const OFFER_DRAFT_FIELDS=['kind','placement','title','url','description'];
+const offerDraftKey=()=>S.session?.user?.id?'repartes:offer-draft:v1:'+S.session.user.id:null;
+function saveOfferDraft(){
+ const form=document.getElementById('offeradd'),key=offerDraftKey();
+ if(!form||!key||form.dataset.draftUser!==S.session.user.id)return;
+ const values={};for(const name of OFFER_DRAFT_FIELDS)values[name]=form.elements.namedItem(name)?.value||'';
+ try{localStorage.setItem(key,JSON.stringify({savedAt:Date.now(),values,scrollY:window.scrollY}));}catch{/* Storage may be unavailable; keep the form usable. */}
+}
+function clearOfferDraft(){
+ const key=offerDraftKey();if(!key)return;
+ try{localStorage.removeItem(key);}catch{}
+}
+function restoreOfferDraft(){
+ const form=document.getElementById('offeradd'),key=offerDraftKey();if(!form||!key)return;
+ form.dataset.draftUser=S.session.user.id;
+ try{
+  const raw=localStorage.getItem(key);if(!raw)return;
+  const draft=JSON.parse(raw);
+  if(!draft||!Number.isFinite(draft.savedAt)||Date.now()-draft.savedAt>7*86400000){clearOfferDraft();return;}
+  for(const name of OFFER_DRAFT_FIELDS){
+   const input=form.elements.namedItem(name),value=draft.values?.[name];
+   if(input&&typeof value==='string'&&(input.tagName!=='SELECT'||Array.from(input.options).some(x=>x.value===value)))input.value=value;
+  }
+  // Consent is deliberately confirmed again by the owner, never saved in storage.
+  if(Number.isFinite(draft.scrollY)&&draft.scrollY>=0)requestAnimationFrame(()=>{if(form.isConnected)window.scrollTo(0,draft.scrollY)});
+ }catch{/* Ignore malformed drafts or unavailable storage. */}
+}
+document.addEventListener('input',ev=>{if(ev.target.closest?.('#offeradd'))saveOfferDraft()});
+document.addEventListener('change',ev=>{if(ev.target.closest?.('#offeradd'))saveOfferDraft()});
+document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveOfferDraft()});
+window.addEventListener('pagehide',saveOfferDraft);
 function layout(inner){
+ saveOfferDraft();
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
  app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label></nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/used-auto-parts.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
+ restoreOfferDraft();
 }
 async function api(action,method='GET',body){
  const headers={};
@@ -210,7 +244,7 @@ document.addEventListener('click',async ev=>{
   if(a==='sellercommission'){const found=S.admin?.sellers?.find(x=>x.user_id===id);if(!found)return;const amount=prompt('Enter the new commission percentage for this seller (0–30%). Changes apply only to new sales.',(found.commission_bps/100).toFixed(2));if(amount===null)return;if(!/^\d{1,2}(\.\d{1,2})?$/.test(amount)||Number(amount)>30)throw Error('Enter a valid percentage from 0 to 30 with up to two decimals.');await api('admin.commission','POST',{id,commission_bps:Math.round(Number(amount)*100)});toast('Seller commission updated for future orders.');await route();return}
   if(a==='withdraw'){if(!confirm('¿Retirar esta pieza del mercado? No se podrá comprar.'))return;await api('listing.withdraw','POST',{id});toast('Anuncio retirado');await route();return}
   if(a==='copyref'){await navigator.clipboard.writeText(refUrl());toast('Enlace de referidos copiado');return}
-  if(a==='logout'){await sb.auth.signOut();S.session=null;S.me=null;location.hash='#home';await route();return}
+  if(a==='logout'){clearOfferDraft();document.getElementById('offeradd')?.reset();await sb.auth.signOut();S.session=null;S.me=null;location.hash='#home';await route();return}
   if(a==='connect'){const r=await api('seller.connect','POST',{});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='checkout'){if(!S.session){location.hash='#login';return}if(!confirm('Continuar al pago protegido por Stripe?'))return;const r=await api('checkout','POST',{listing_id:id});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type==='checkbox')elem.checked=Boolean(v);else if(elem&&elem.type!=='file')elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
@@ -239,6 +273,7 @@ document.addEventListener('submit',async ev=>{
   }
   if(f.id==='offeradd'){
    await api('admin.offer.add','POST',{...v,confirm_relationship:f.elements.namedItem('confirm_relationship').checked});
+   clearOfferDraft();f.reset();
    await refreshCatalog();toast('Verified partner link saved.');
   }
   if(f.id==='socialsettings'){const links={};for(const [k] of SOCIAL_NETWORKS)links[k]=String(v[k]||'').trim();await api('admin.socials','POST',{links});toast('Official social links saved.');await refreshCatalog()}
@@ -276,7 +311,7 @@ window.addEventListener('hashchange',route);
   const {data}=await sb.auth.getSession();S.session=data.session;
   await Promise.all([refreshCatalog(),refreshIdentity()]);
   await claimRef();
-  sb.auth.onAuthStateChange((_event,session)=>{S.session=session;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
+  sb.auth.onAuthStateChange((_event,session)=>{const previousUser=S.session?.user?.id;S.session=session;if(previousUser===session?.user?.id)return;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
   await route();
  }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 })();
