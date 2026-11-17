@@ -71,7 +71,7 @@ export async function handler(event){
    await auth(event,d,{owner:true});
    const [metrics,listings,sellers,orders,users,settings,audits]=await Promise.all([
     d.rpc('owner_metrics'),d.from('listings').select('*,sellers(shop_name)').order('created_at',{ascending:false}).limit(200),
-    d.from('sellers').select('user_id,shop_name,status,stripe_account_id,created_at').order('created_at',{ascending:false}).limit(200),
+    d.from('sellers').select('user_id,shop_name,status,stripe_account_id,commission_bps,created_at').order('created_at',{ascending:false}).limit(200),
     d.from('orders').select('*,listings(title)').order('created_at',{ascending:false}).limit(150),
     d.from('profiles').select('id,display_name,is_banned,created_at').order('created_at',{ascending:false}).limit(150),
     d.from('site_settings').select('*').eq('id',1).single(),
