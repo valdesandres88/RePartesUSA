@@ -16,14 +16,14 @@ export async function handler(event){
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
     d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email').eq('id',1).single(),
-    d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
+    d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,public_contact_enabled,contact_email,contact_phone,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
    ]);
    const conf=unwrap(settings),listings=unwrap(items),ids=[...new Set(listings.map(x=>x.seller_id))];
    const sellers=ids.length?unwrap(await d.from('sellers').select('user_id,shop_name,status').in('user_id',ids)):[];
    const flags=ids.length?unwrap(await d.from('profiles').select('id,is_banned').in('id',ids)):[];
    const active=new Set(flags.filter(x=>!x.is_banned).map(x=>x.id));
    const lookup=new Map(sellers.filter(x=>x.status==='approved'&&active.has(x.user_id)).map(x=>[x.user_id,x.shop_name]));
-   return respond({settings:conf,listings:listings.filter(x=>lookup.has(x.seller_id)).map(x=>({...x,shop_name:lookup.get(x.seller_id)}))});
+   return respond({settings:conf,listings:listings.filter(x=>lookup.has(x.seller_id)).map(x=>({...x,shop_name:lookup.get(x.seller_id),contact_email:x.public_contact_enabled?x.contact_email:'',contact_phone:x.public_contact_enabled?x.contact_phone:''}))});
   }
   if(method==='GET'&&action==='reviews'){
    const scope=(event.queryStringParameters||{}).scope==='part'?'part':'website';
@@ -185,12 +185,21 @@ export async function handler(event){
    if(!genuineSellerPhoto(photo,u.id,process.env.SUPABASE_URL))fail('Sube una foto original de la pieza desde tu teléfono. No se permiten fotografías de catálogo ni imágenes externas.');
    if(body.seller_has_item!==true || body.original_photo_attested!==true)fail('Confirma que tienes físicamente la pieza y que la foto es auténtica.');
    const image_url=validImage(photo);
+   const public_contact_enabled=body.public_contact_enabled===true;
+   const email=str(body.contact_email,160).toLowerCase(),phoneRaw=str(body.contact_phone,25);
+   if(email&&(!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)))fail('Correo de contacto inválido.');
+   const phoneDigits=phoneRaw.replace(/[^0-9]/g,'');
+   if(phoneRaw&&!/^[+0-9().\s-]+$/.test(phoneRaw))fail('Teléfono de contacto inválido.');
+   const contact_phone=phoneDigits.length===10?'+1'+phoneDigits:phoneDigits.length>=11&&phoneDigits.length<=15?'+'+phoneDigits:'';
+   if(phoneRaw&&!contact_phone)fail('Teléfono de contacto debe contener 10 a 15 dígitos.');
+   if(public_contact_enabled&&!email&&!contact_phone)fail('Agrega un correo comercial o teléfono antes de publicar información de contacto.');
+   const contact_email=email;
    const condition=exactStatus(body.condition,['used','remanufactured','new']);
    const year_min=positiveInt(body.year_min,1950,2100),year_max=positiveInt(body.year_max,1950,2100);
    if(year_min>year_max||title.length<5||description.length<15||!make||!model)fail('Completa correctamente los datos de compatibilidad y descripción.');
    const dollars=String(body.price).trim();if(!/^(0|[1-9]\d{0,5})(\.\d{1,2})?$/.test(dollars))fail('Precio inválido.');
    const price_cents=Math.round(Number(dollars)*100);if(price_cents<1000||price_cents>10000000)fail('Precio permitido: $10 a $100,000.');
-   const data={title,description,make,model,year_min,year_max,condition,part_number:str(body.part_number,100),image_url,price_cents,status:'pending',seller_has_item:true,original_photo_attested:true,inventory_verified_by_owner:false,verified_at:null,updated_at:new Date().toISOString()};
+   const data={title,description,make,model,year_min,year_max,condition,part_number:str(body.part_number,100),image_url,price_cents,status:'pending',seller_has_item:true,original_photo_attested:true,inventory_verified_by_owner:false,verified_at:null,public_contact_enabled,contact_email,contact_phone,updated_at:new Date().toISOString()};
    if(body.id){
     const prev=unwrap(await d.from('listings').select('status').eq('id',body.id).eq('seller_id',u.id).single());
     if(!['pending','approved','rejected'].includes(prev.status))fail('No puedes modificar una pieza ya vendida o reservada.');
