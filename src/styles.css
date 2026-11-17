@@ -12,3 +12,15 @@
 .policy-copy a{color:#0c7861;text-decoration:underline;word-break:break-word}
 .policy-nav{display:flex;flex-wrap:wrap;gap:10px;margin:18px 0 45px}
 .policy-nav a{color:#0b6659;text-decoration:underline;text-underline-offset:4px;font-weight:700}
+
+/* Language switcher, official social links, and verified reviews */
+.language-label{display:flex;align-items:center;gap:7px;font-size:12px;font-weight:700;white-space:nowrap}
+.language-label select{max-width:130px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px;color:var(--ink)}
+.social-profiles{display:flex;flex-wrap:wrap;gap:9px 12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid #346459;color:#e7fff1}
+.social-profiles a{color:#dff66c;text-decoration:underline;text-underline-offset:3px;font-weight:650}
+.review{border-bottom:1px solid var(--line);padding:20px 0}
+.review:last-child{border-bottom:none}
+.review h3{font-size:18px}
+.stars{color:#c08c13;letter-spacing:.1em;font-size:18px;font-weight:900}
+.google-signin{text-align:center}
+@media(max-width:730px){.language-label{width:100%;justify-content:flex-end}.language-label select{max-width:120px}}
