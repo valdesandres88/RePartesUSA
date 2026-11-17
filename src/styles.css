@@ -24,3 +24,16 @@
 .stars{color:#c08c13;letter-spacing:.1em;font-size:18px;font-weight:900}
 .google-signin{text-align:center}
 @media(max-width:730px){.language-label{width:100%;justify-content:flex-end}.language-label select{max-width:120px}}
+
+/* Paid partner placements: clearly disclosed, responsive, never disguised as organic inventory. */
+.offers{border-top:1px solid var(--line);margin-top:26px}
+.offer-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,270px),1fr));gap:16px;margin:16px 0}
+.offer-card{border:1px solid var(--line);border-radius:14px;background:white;padding:19px;overflow-wrap:anywhere}
+.offer-card h3{margin:10px 0}
+.offer-card a.secondary{display:inline-block;max-width:100%;white-space:normal}
+.offer-kind{display:inline-block;background:#eef3eb;border:1px solid #d3e1d2;color:#225848;border-radius:6px;padding:4px 9px;font-weight:800;font-size:11px;text-transform:uppercase;letter-spacing:.06em}
+#offeradd{border-top:1px solid var(--line);padding-top:20px;margin-top:20px}
+#offeradd label,#adssettings label{display:block;margin:10px 0}
+#offeradd .check,#adssettings .check{display:flex;align-items:flex-start;gap:10px}
+#offeradd .check input,#adssettings .check input{width:auto;margin-top:5px}
+#adssettings{border-color:#c6dcbf}
