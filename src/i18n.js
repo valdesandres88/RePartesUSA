@@ -1,3 +1,4 @@
+import {legalTranslations} from './legal-en.js';
 // Site copy is authored largely in Spanish; English is the default presentation.
 // Only exact static UI strings are translated so buyer/seller content is not rewritten.
 export const LANGUAGES=[['en','English'],['es','Español']];
@@ -116,6 +117,7 @@ const esToEn={
 'no acepta compras ni procesa devoluciones reales':'does not yet accept purchases or process actual returns',
 'política de envíos y devoluciones':'shipping and returns policy'
 };
+Object.assign(esToEn,legalTranslations);
 const enToEsExtras={
 'Website reviews':'Opiniones del sitio','Genuine user feedback, never invented testimonials.':'Opiniones auténticas de usuarios; nunca reseñas inventadas.',
 'Rate the website':'Califica la página','Verified buyer reviews':'Opiniones de compradores verificados',
