@@ -34,3 +34,12 @@ Los vendedores introducen seguimiento real del envío; el Owner registra la fech
 ## Lanzamiento
 
 El sitio comercial no puede ofrecer productos sin que vendedores reales hayan registrado inventario auténtico y el Owner lo haya aprobado. Tampoco se puede prometer compra inmediata hasta configurar Stripe Connect, pagos, entrega, reclamaciones e impuestos.
+
+## Idiomas y acceso
+
+- La web se presenta en inglés por defecto, con selector English / Español; otros idiomas deberán traducirse y verificarse antes de ofrecerse públicamente.
+- Registro e inicio de sesión: correo electrónico/contraseña y Google exclusivamente. **Google aparece solo si el endpoint público de Supabase Auth indica que el proveedor Google está habilitado**. Debe configurarse Google OAuth en Supabase > Authentication > Providers y el cliente OAuth en Google Cloud con callback `https://qajrhtcsxkfrdxlypxig.supabase.co/auth/v1/callback`. Añade `https://repartesusa-marketplace.netlify.app/**` a los redirect URLs permitidos en Supabase Auth. No incrustes Google client secrets en el frontend ni los envíes por chat.
+- X, Telegram, Instagram, Facebook, TikTok, YouTube, Threads, Pinterest y LinkedIn son **únicamente enlaces oficiales**, administrados por Owner desde `Panel Owner > Official social media profiles`; los campos vacíos no aparecen al público. Ninguna de estas redes concede acceso a cuentas.
+- Las opiniones sobre la web pueden enviarse por usuarios registrados y requieren moderación. Las reseñas de piezas requieren una compra real pagada, una sola por pedido, y aprobación Owner. No hay reseñas falsas ni valoraciones inventadas.
+- Cada vendedor puede anunciar correo/teléfono comercial de manera voluntaria, aprobado por Owner; no se publica el correo de inicio de sesión.
+- Comisiones ajustables individualmente por vendedor desde Owner; la comisión vigente se calcula al reservar cada pedido. Inventario propio del Owner no paga comisión interna, sino las tarifas de procesamiento de Stripe que correspondan.
