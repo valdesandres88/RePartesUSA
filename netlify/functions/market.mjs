@@ -279,7 +279,7 @@ export async function handler(event){
     await audit(d,u.id,'owner.adsense.config','adsense',{enabled:adsense_enabled,publisher_id_present:Boolean(adsense_publisher_id)});
     return respond({ok:true,enabled:adsense_enabled});
    }
-   if(action==='admin.offer.add'){
+   if(action==='admin.offer.add'||action==='admin.offer.update'){
     const kind=exactStatus(body.kind,['affiliate','sponsored']);
     const placement=exactStatus(body.placement,['home','part']);
     const title=str(body.title,100),description=str(body.description,260),raw=str(body.url,1500);
@@ -288,10 +288,14 @@ export async function handler(event){
     if(target.protocol!=='https:'||target.username||target.password||!target.hostname.includes('.')||target.hostname==='localhost'||target.hostname.endsWith('.local'))fail('Only public HTTPS commercial links are permitted.');
     const settings=unwrap(await d.from('site_settings').select('monetization_offers').eq('id',1).single());
     const existing=Array.isArray(settings.monetization_offers)?settings.monetization_offers:[];
-    if(existing.length>=12)fail('Maximum of 12 approved offers.');
-    const offer={id:randomBytes(12).toString('hex'),kind,placement,title,description,url:target.toString()};
-    unwrap(await d.from('site_settings').update({monetization_offers:[...existing,offer],updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
-    await audit(d,u.id,'owner.offer.add',offer.id,{kind,placement});
+    const editing=action==='admin.offer.update',id=editing?str(body.id,24):randomBytes(12).toString('hex');
+    if(editing&&!/^[0-9a-f]{24}$/.test(id))fail('Invalid offer ID.');
+    if(editing&&!existing.some(x=>x.id===id))fail('This offer no longer exists. Refresh the dashboard.',404);
+    if(!editing&&existing.length>=12)fail('Maximum of 12 approved offers.');
+    const offer={id,kind,placement,title,description,url:target.toString()};
+    const offers=editing?existing.map(x=>x.id===id?offer:x):[...existing,offer];
+    unwrap(await d.from('site_settings').update({monetization_offers:offers,updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
+    await audit(d,u.id,editing?'owner.offer.update':'owner.offer.add',offer.id,{kind,placement});
     return respond({ok:true,offer});
    }
    if(action==='admin.offer.remove'){
