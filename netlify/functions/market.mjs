@@ -170,6 +170,13 @@ export async function handler(event){
    }
    await audit(d,u.id,'listing.submitted',body.id);return respond({ok:true,id:body.id});
   }
+  if(action==='listing.withdraw'){
+   const listing=unwrap(await d.from('listings').select('id,status').eq('id',body.id).eq('seller_id',u.id).single());
+   if(['reserved','sold'].includes(listing.status))fail('No se puede retirar una pieza ya reservada o vendida.');
+   const done=unwrap(await d.from('listings').update({status:'removed',inventory_verified_by_owner:false,verified_at:null,updated_at:new Date().toISOString()}).eq('id',listing.id).eq('seller_id',u.id).in('status',['pending','approved','rejected']).select('id').single());
+   await audit(d,u.id,'listing.withdraw',done.id);
+   return respond({ok:true});
+  }
   if(action==='checkout'){
    if(!process.env.STRIPE_SECRET_KEY)fail('Stripe no está configurado.',503);
    const settings=unwrap(await d.from('site_settings').select('*').eq('id',1).single());
