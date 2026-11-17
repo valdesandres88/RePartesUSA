@@ -4,14 +4,27 @@ import './styles.css';
 
 const cfg=import.meta.env;
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
-const S={session:null,me:null,site:null,mine:null,admin:null,q:''},app=document.getElementById('app');
+const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:''},app=document.getElementById('app');
+const refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
+if(/^[A-Z0-9]{12}$/.test(refQuery))localStorage.setItem('repartes_referral',refQuery);
+const pendingRef=()=>localStorage.getItem('repartes_referral')||'';
+const refUrl=()=>location.origin+location.pathname+'?ref='+encodeURIComponent(S.referrals?.code||'')+'#login';
+async function claimRef(){
+ if(!S.session)return;
+ const code=pendingRef()||String(S.session?.user?.user_metadata?.referral_code||'').toUpperCase();
+ if(!/^[A-Z0-9]{12}$/.test(code))return;
+ try{await api('referral.claim','POST',{code});}
+ catch(e){console.info('Referido no asociado:',e.message);}
+ finally{localStorage.removeItem('repartes_referral');}
+}
+
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const field=(name,label,value='',type='text',required=true)=>`<label>${esc(label)}<input name="${esc(name)}" type="${type}" value="${esc(value)}" ${required?'required':''}></label>`;
 const date=s=>s?new Date(s).toLocaleDateString('es-US'):'—';
 function toast(msg){window.alert(msg)}
 function layout(inner){
- const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>`:'<a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}</nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div></footer>`;
+ const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}</nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div></footer>`;
 }
 async function api(action,method='GET',body){
  const headers={};
@@ -43,7 +56,7 @@ function sell(){
  if(!S.session){layout(authWall);return}
  const seller=S.me?.seller,m=S.mine||{listings:[],sales:[]};
  const apply=`<form id="seller" class="panel"><h2>Solicitar cuenta de vendedor</h2>${field('shop_name','Nombre de la tienda')}<button class="primary">Solicitar revisión</button></form>`;
- const publish=`<form class="panel" id="listing"><h2>Publicar pieza</h2><p>Todos los anuncios requieren aprobación del Owner.</p>${field('title','Nombre de la pieza')}${field('make','Marca del auto')}${field('model','Modelo del auto')}${field('year_min','Año desde','2010','number')}${field('year_max','Año hasta','2020','number')}${field('part_number','Número de pieza','','text',false)}${field('price','Precio USD, envío incluido','49.99')}<label>Condición<select name="condition"><option value="used">Usada</option><option value="remanufactured">Remanufacturada</option><option value="new">Nueva</option></select></label>${field('image_url','Enlace HTTPS de fotografía (opcional)','','text',false)}<label>Descripción<textarea name="description" rows="5" required></textarea></label><button class="primary">Enviar para aprobación</button></form>`;
+ const publish=`<form class="panel" id="listing"><h2>Publicar pieza</h2><p>Todos los anuncios requieren aprobación del Owner.</p>${field('title','Nombre de la pieza')}${field('make','Marca del auto')}${field('model','Modelo del auto')}${field('year_min','Año desde','2010','number')}${field('year_max','Año hasta','2020','number')}${field('part_number','Número de pieza','','text',false)}${field('price','Precio USD, envío incluido','49.99')}<label>Condición<select name="condition"><option value="used">Usada</option><option value="remanufactured">Remanufacturada</option><option value="new">Nueva</option></select></label><label>Fotografía original de la pieza (JPG, PNG o WebP, hasta 5 MB)<input name="part_photo" type="file" accept="image/jpeg,image/png,image/webp" capture="environment"></label><input name="image_url" type="hidden"><p>Sube la foto auténtica de tu artículo, tomada con tu teléfono. No se permiten imágenes de catálogo, IA ni artículos que no tengas.</p><label class="check"><input type="checkbox" name="seller_has_item" required> Confirmo que tengo físicamente esta pieza, lista para enviar.</label><label class="check"><input type="checkbox" name="original_photo_attested" required> Confirmo que la foto es original y corresponde exactamente al artículo.</label><label>Descripción<textarea name="description" rows="5" required></textarea></label><button class="primary">Enviar para aprobación</button></form>`;
  const rows=(m.listings||[]).map(x=>`<tr><td>${esc(x.title)}</td><td>${money(x.price_cents)}</td><td>${statusBadge(x.status)}</td><td>${['pending','approved','rejected'].includes(x.status)?`<button data-act="edit" data-id="${esc(x.id)}">Editar</button>`:'—'}</td></tr>`).join('');
  const sales=(m.sales||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${statusBadge(x.status)}</td><td>${x.status==='paid'?`<button data-act="ship" data-id="${esc(x.id)}">Registrar tracking</button>`:esc(x.tracking_code||'—')}</td></tr>`).join('');
  layout(`<section class="section"><h1>Centro de vendedores</h1>${!seller?apply:`<div class="panel"><h2>${esc(seller.shop_name)} ${statusBadge(seller.status)}</h2><p>Stripe Connect: ${seller.account_ready?'Listo':'Pendiente de configurar'}</p><button data-act="connect">Conectar Stripe para recibir pagos</button></div>${publish}<h2>Mis anuncios</h2>${table(['Pieza','Precio','Estado','Acción'],rows)}<h2>Ventas</h2>${table(['Pieza','Precio','Estado','Envío'],sales)}`}</section>`);
@@ -128,7 +141,7 @@ document.addEventListener('click',async ev=>{
   if(a==='logout'){await sb.auth.signOut();S.session=null;S.me=null;location.hash='#home';await route();return}
   if(a==='connect'){const r=await api('seller.connect','POST',{});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='checkout'){if(!S.session){location.hash='#login';return}if(!confirm('Continuar al pago protegido por Stripe?'))return;const r=await api('checkout','POST',{listing_id:id});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
-  if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem)elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
+  if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type!=='file'&&elem.type!=='checkbox')elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
   if(a==='ship'){const t=prompt('Número real de seguimiento');if(!t)return;await api('order.ship','POST',{id,tracking_code:t});toast('Seguimiento guardado');await route();return}
   const actions={sellerstatus:'admin.seller',listingstatus:'admin.listing',userban:'admin.ban',refund:'admin.refund'};
   if(actions[a]){
@@ -146,7 +159,22 @@ document.addEventListener('submit',async ev=>{
   if(f.id==='signin'){const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;location.hash='#home'}
   if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash='#home'}
   if(f.id==='seller'){await api('seller.apply','POST',v);await refreshIdentity();toast('Solicitud enviada al Owner')}
-  if(f.id==='listing'){if(f.dataset.id)v.id=f.dataset.id;await api('listing.save','POST',v);toast('Pieza enviada a revisión')}
+  if(f.id==='listing'){
+    if(f.dataset.id)v.id=f.dataset.id;
+    const file=f.elements.namedItem('part_photo')?.files?.[0];
+    if(file){
+     if(file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('La foto debe ser JPG, PNG o WebP y pesar menos de 5 MB.');
+     const ext=file.type==='image/png'?'png':file.type==='image/webp'?'webp':'jpg';
+     const dest=S.session.user.id+'/'+crypto.randomUUID()+'.'+ext;
+     const {error}=await sb.storage.from('part-photos').upload(dest,file,{contentType:file.type,upsert:false});
+     if(error)throw Error('No se pudo subir la foto: '+error.message);
+     v.image_url=sb.storage.from('part-photos').getPublicUrl(dest).data.publicUrl;
+    }
+    v.seller_has_item=f.elements.namedItem('seller_has_item').checked;
+    v.original_photo_attested=f.elements.namedItem('original_photo_attested').checked;
+    if(!v.image_url)throw Error('Debes subir una fotografía original del artículo.');
+    await api('listing.save','POST',v);toast('Pieza real enviada a verificación del Owner');
+   }
   if(f.id==='settings'){v.commission_bps=Number(v.commission_bps);v.payments_enabled=f.elements.namedItem('payments_enabled').checked;await api('admin.settings','POST',v);toast('Configuración actualizada');await refreshCatalog()}
   await route();
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
