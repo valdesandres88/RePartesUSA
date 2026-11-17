@@ -11,7 +11,7 @@ const date=s=>s?new Date(s).toLocaleDateString('es-US'):'—';
 function toast(msg){window.alert(msg)}
 function layout(inner){
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>`:'<a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}</nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de vendedores independientes · Envíos a Estados Unidos · Los pagos se procesan en Stripe cuando estén habilitados.</p><a href="#legal">Condiciones y privacidad</a></footer>`;
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}</nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div></footer>`;
 }
 async function api(action,method='GET',body){
  const headers={};
@@ -65,7 +65,44 @@ function owner(){
  const users=(d.users||[]).map(x=>`<tr><td>${esc(x.display_name||'Sin nombre')}</td><td>${x.is_banned?'Suspendido':'Activo'}</td><td>${actionButton('userban',x.id,x.is_banned?'unban':'ban',x.is_banned?'Reactivar':'Suspender')}</td></tr>`).join('');
  layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form><h2>Vendedores</h2>${table(['Tienda','Estado','Stripe','Acciones'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
 }
-function legal(){layout('<section class="section panel"><h1>Condiciones y privacidad</h1><p>Esta plataforma conecta compradores con vendedores independientes. Los vendedores son responsables de la descripción, origen, seguridad, compatibilidad y entrega de las piezas. Los pagos serán procesados con Stripe.</p><p>Antes de aceptar ventas reales deben publicarse políticas definitivas de privacidad, devoluciones, restricciones de productos y resolución de disputas; el contenido actual es informativo y no sustituye asesoría legal.</p></section>')}
+function publicInfo(kind){
+ const email=S.site?.settings?.support_email||'';
+ const support=email?'<a href="mailto:'+esc(email)+'">'+esc(email)+'</a>':'Correo de soporte pendiente de publicación';
+ const pages={
+  about:{title:'Sobre RePartes USA',sections:[
+   '<h2>¿Qué es RePartes USA?</h2><p>RePartes USA es un marketplace en línea para conectar a personas que buscan autopartes con vendedores independientes en Estados Unidos. El catálogo podrá incluir piezas usadas, reacondicionadas o nuevas, siempre que sean legales, estén correctamente descritas y estén permitidas por el procesador de pagos y los servicios de transporte.</p>',
+   '<h2>¿Cómo funciona?</h2><p>Los vendedores solicitarán acceso, publicarán la información de sus piezas y estarán sujetos a revisión de anuncios. Los compradores podrán buscar por marca, modelo, compatibilidad y número de pieza. Cuando se habiliten las compras, los precios se mostrarán en dólares estadounidenses (USD) y los pagos se procesarán mediante Stripe.</p>',
+   '<h2>Estado de lanzamiento</h2><p>Actualmente, RePartes USA está preparando su operación comercial. No está aceptando pagos ni pedidos nuevos. No anunciamos productos o vendedores inexistentes como si estuvieran disponibles.</p>'
+  ]},
+  contact:{title:'Contacto y atención al cliente',sections:[
+   '<h2>Comunícate con RePartes USA</h2><p>Para consultas sobre anuncios, el funcionamiento del marketplace, privacidad, reportes de vendedores o futuros pedidos, escribe a: <strong>%%EMAIL%%</strong>.</p>',
+   '<h2>Compras y reclamos</h2><p>Las compras están temporalmente desactivadas. Cuando comiencen las operaciones, este mismo canal permitirá iniciar solicitudes de soporte sobre órdenes, incidencias de envío y reclamos. No se ha publicado una línea telefónica ni un horario de atención.</p>',
+   '<h2>Información comercial</h2><p>Nombre de la plataforma: RePartes USA. Operación prevista: marketplace de autopartes para clientes en Estados Unidos. Moneda prevista: USD. Antes de comenzar a cobrar se completarán los datos exigidos para la verificación empresarial.</p>'
+  ]},
+  shipping:{title:'Envíos, devoluciones y reembolsos',sections:[
+   '<h2>Estado actual: sin compras</h2><p>RePartes USA todavía no acepta pagos, pedidos ni envíos a través de esta plataforma. No existe un plazo de entrega garantizado ni una devolución automática disponible para un pedido futuro.</p>',
+   '<h2>Responsabilidad del vendedor</h2><p>La descripción, compatibilidad, estado, embalaje y entrega de cada pieza corresponderán al vendedor independiente según las condiciones que se publiquen antes de cada compra. El comprador deberá verificar los números de pieza y la compatibilidad con su vehículo.</p>',
+   '<h2>Políticas por definir antes del lanzamiento</h2><p>Antes de habilitar los cobros publicaremos los plazos y costos de envío aplicables, los criterios y períodos de devolución, las instrucciones para solicitar un reembolso, las responsabilidades por daños o piezas incompatibles y el procedimiento de reclamaciones. No se aceptarán órdenes reales hasta contar con esas condiciones operativas.</p>',
+   '<h2>Consultas</h2><p>Para información sobre una futura compra o una política de devolución escribe a %%EMAIL%%.</p>'
+  ]},
+  privacy:{title:'Aviso de privacidad',sections:[
+   '<h2>Información tratada por la plataforma</h2><p>Para operar las cuentas, anuncios y posibles compras, el servicio puede tratar datos proporcionados por los usuarios como correo electrónico, nombre de perfil, detalles de piezas, datos de envío y seguimiento, así como registros técnicos y de seguridad necesarios para prestar el servicio.</p>',
+   '<h2>Proveedores tecnológicos</h2><p>El servicio utiliza Supabase para cuentas y datos de la plataforma y Netlify para alojar el sitio y las funciones del servidor. Cuando se activen pagos, Stripe gestionará el procesamiento de las transacciones. RePartes USA no solicita que los compradores escriban el número completo de su tarjeta en formularios propios.</p>',
+   '<h2>Finalidad y solicitudes</h2><p>Los datos se utilizan para administrar el servicio, responder consultas, gestionar transacciones y proteger la integridad de las cuentas. Para consultas sobre datos personales, acceso, correcciones o solicitudes de eliminación, escribe a %%EMAIL%%. Algunas solicitudes pueden estar sujetas a obligaciones de conservación legales o de seguridad.</p>',
+   '<h2>Información pendiente de completar</h2><p>Este aviso es inicial. Antes del lanzamiento público comercial se deberá completar y revisar la política de retención de datos, cookies, destinatarios, derechos aplicables y cualquier otro requisito legal de las jurisdicciones donde opere la plataforma.</p>'
+  ]},
+  terms:{title:'Términos de uso',sections:[
+   '<h2>Naturaleza de la plataforma</h2><p>RePartes USA está diseñado para facilitar el contacto y las futuras transacciones entre compradores y vendedores independientes de autopartes. No se afirma que la plataforma sea fabricante, proveedor o garante de las piezas anunciadas por terceros.</p>',
+   '<h2>Obligaciones de los vendedores</h2><p>Los anuncios deben describir las piezas de forma veraz, identificar su condición y compatibilidad y acreditar su legítima procedencia. No se permitirán artículos robados, falsificados, prohibidos por ley, peligrosos o no autorizados para su venta o transporte. RePartes USA podrá retirar publicaciones que incumplan las reglas aplicables.</p>',
+   '<h2>Condiciones de compra</h2><p>Todos los precios se expresarán en dólares estadounidenses (USD). Las compras están desactivadas en este momento. Antes de permitir transacciones deberán publicarse las condiciones de envío, devoluciones, reembolsos, disputas, impuestos y responsabilidades aplicables, para que los clientes puedan revisarlas antes de pagar.</p>',
+   '<h2>Atención</h2><p>Las consultas sobre la plataforma se pueden dirigir a %%EMAIL%%. Este documento se encuentra en preparación para su revisión antes de iniciar operaciones comerciales.</p>'
+  ]}
+ };
+ const p=pages[kind]||pages.terms;
+ const nav='<div class="policy-nav"><a href="#about">Sobre nosotros</a> · <a href="#contact">Contacto</a> · <a href="#shipping">Envíos y devoluciones</a> · <a href="#privacy">Privacidad</a> · <a href="#terms">Términos</a></div>';
+ const body=p.sections.join('').replaceAll('%%EMAIL%%',support);
+ layout('<section class="section"><div class="eyebrow">INFORMACIÓN DEL MARKETPLACE</div><h1>'+esc(p.title)+'</h1><div class="panel policy-copy">'+body+'</div>'+nav+'</section>');
+}
 let version=0;
 async function route(){
  const current=++version,hash=(location.hash||'#home').slice(1),[p,id]=hash.split('/');
@@ -74,7 +111,7 @@ async function route(){
   if(['orders','sell'].includes(p)&&S.session)S.mine=await api('mine');
   if(p==='owner'&&S.me?.is_owner)S.admin=await api('dashboard');
   if(version!==current)return;
-  if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='owner')owner();else if(p==='legal')legal();else home();
+  if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
  }catch(err){layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
 async function refreshIdentity(){S.me=S.session?await api('me'):null}
