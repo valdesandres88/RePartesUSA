@@ -1,15 +1,36 @@
-# RePartes USA
+# RePartes USA — marketplace de autopartes físicas
 
-Marketplace real de autopartes usadas. Aplicación Vite + Supabase + Netlify Functions + Stripe Connect.
+Aplicación real con Vite, Supabase, Netlify Functions y Stripe Connect. El sistema no incluye productos, vendedores, ventas ni reseñas simuladas.
 
-No contiene ventas simuladas. Los pagos permanecen desactivados hasta verificar Stripe y configurar el owner.
+## Inventario auténtico
 
-## Configuración
+- Cada vendedor registrado debe subir **una fotografía original** de la pieza mediante el formulario, desde su teléfono. Se guarda en el bucket `part-photos` de Supabase Storage (JPG/PNG/WebP, máx. 5 MB).
+- El vendedor debe confirmar que tiene físicamente la pieza lista para despachar y que la fotografía muestra exactamente ese artículo.
+- Cada producto representa **una unidad única**: la transacción reserva la pieza y la retira del inventario tras el pago confirmado.
+- El Owner debe revisar disponibilidad, condición, compatibilidad, procedencia legítima y fotografía antes de aprobar. No es una verificación automatizada de autenticidad.
+- El vendedor puede retirar inmediatamente una pieza no disponible. No se usan fotografías de muestra ni productos de relleno.
 
-1. Conectar el repositorio a Netlify (build: `npm run build`, publish: `dist`).
-2. En Netlify cargar variables como en `.env.example`. Nunca publicar claves privadas.
-3. En Supabase RePartes USA usar el esquema instalado; no reejecutar migraciones iniciales ya aplicadas.
-4. Vincular Stripe Connect y probar pagos/refunds antes de habilitar modo `live`.
-5. Establecer `OWNER_USER_ID` de la cuenta confirmada en Supabase Auth, no un password en código.
+## Pagos y envíos
 
-**Estado:** infraestructura en proceso de instalación; no poner en producción comercial sin verificar cobros, reembolsos, impuestos, seguridad y devoluciones.
+Stripe Connect permite conectar las cuentas verificadas de vendedores, y Stripe Checkout realiza el cobro bajo controles de reserva, webhooks firmados y comprobación de importes. El checkout NO se habilita automáticamente: requiere `site_settings.payments_enabled = true`, `CHECKOUT_MODE` válido, webhook firmado, una pieza aprobada por Owner y cuenta Stripe del vendedor lista para cobrar.
+
+**Estado de prelanzamiento: `payments_enabled = false`**. No se ha afirmado que el sitio ya acepte dinero real. Antes del lanzamiento: verificar datos comerciales, condiciones de Stripe Connect, impuestos, procedimientos de entrega y cumplimiento legal.
+
+Los vendedores introducen seguimiento real del envío; el Owner registra la fecha de entrega tras verificarla. Solo entonces comienza el plazo de devolución de 30 días.
+
+## Devoluciones y referidos
+
+- Solicitud de devolución dentro de 30 días naturales desde la entrega confirmada, revisión Owner, autorización y registro del retorno. El reembolso real solo se procesa por Stripe y solo tras los controles establecidos.
+- Código y enlace personal para referidos; estadísticas de registros y compradores que completan una compra real. **No hay premios, créditos ni pagos de afiliados activados**.
+
+## Infraestructura
+
+1. Netlify construye con `npm run build` y publica `dist`, usando las variables de `.env.example`.
+2. Supabase: proyecto RePartes USA; se aplicaron migraciones incrementales. **No vuelvas a ejecutar `supabase/schema.sql` sobre la base existente.**
+3. El owner es el usuario Supabase Auth indicado mediante la variable privada `OWNER_USER_ID`.
+4. Nunca incrustes claves de servicio o Stripe secretas en el navegador. Solo claves públicas `VITE_*` se envían al frontend.
+5. `npm run check` ejecuta pruebas unitarias y build.
+
+## Lanzamiento
+
+El sitio comercial no puede ofrecer productos sin que vendedores reales hayan registrado inventario auténtico y el Owner lo haya aprobado. Tampoco se puede prometer compra inmediata hasta configurar Stripe Connect, pagos, entrega, reclamaciones e impuestos.
