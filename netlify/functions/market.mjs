@@ -25,6 +25,16 @@ export async function handler(event){
    const lookup=new Map(sellers.filter(x=>x.status==='approved'&&active.has(x.user_id)).map(x=>[x.user_id,x.shop_name]));
    return respond({settings:conf,listings:listings.filter(x=>lookup.has(x.seller_id)).map(x=>({...x,shop_name:lookup.get(x.seller_id)}))});
   }
+  if(method==='GET'&&action==='reviews'){
+   const scope=(event.queryStringParameters||{}).scope==='part'?'part':'website';
+   const listingId=String((event.queryStringParameters||{}).listing_id||'');
+   if(scope==='part'&&!/^[0-9a-f-]{36}$/i.test(listingId))fail('Falta el identificador de la pieza.');
+   let q=d.from('market_reviews').select('id,rating,title,comment,created_at,subject,listing_id').eq('status','approved').eq('subject',scope).order('created_at',{ascending:false}).limit(100);
+   if(scope==='part')q=q.eq('listing_id',listingId);
+   const list=unwrap(await q);
+   const count=list.length;
+   return respond({scope,count,average:count?Math.round(list.reduce((a,b)=>a+b.rating,0)*10/count)/10:null,reviews:list});
+  }
   if(method==='GET'&&action==='me'){
    const u=await auth(event,d),seller=unwrap(await d.from('sellers').select('*').eq('user_id',u.id).maybeSingle());
    let account_ready=false;
@@ -67,18 +77,43 @@ export async function handler(event){
     d.from('site_settings').select('*').eq('id',1).single(),
     d.from('audit_log').select('*').order('created_at',{ascending:false}).limit(50)
    ]);
-   const [returns,referrals]=await Promise.all([
+   const [returns,referrals,reviews]=await Promise.all([
     d.from('return_requests').select('id,order_id,buyer_id,reason,details,evidence_url,status,admin_note,return_tracking,requested_at,authorized_at,received_at').order('requested_at',{ascending:false}).limit(200),
-    d.from('referrals').select('referred_id,referrer_id,code,created_at').order('created_at',{ascending:false}).limit(200)
+    d.from('referrals').select('referred_id,referrer_id,code,created_at').order('created_at',{ascending:false}).limit(200),
+    d.from('market_reviews').select('id,reviewer_id,subject,listing_id,order_id,rating,title,comment,status,created_at').order('created_at',{ascending:false}).limit(150)
    ]);
    const returnRows=unwrap(returns),referralRows=unwrap(referrals),referred=referralRows.map(x=>x.referred_id);
    const purchases=referred.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',referred).in('status',['paid','shipped'])):[];
    const qualified=new Set(purchases.map(x=>x.buyer_id));
-   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false}});
+   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false},reviews:unwrap(reviews)});
 
   }
   if(method!=='POST')fail('Método no permitido.',405);
   const u=await auth(event,d),s=stripe;
+  if(action==='review.submit'){
+   const subject=exactStatus(body.subject,['website','part']);
+   const rating=positiveInt(body.rating,1,5);
+   const title=str(body.title,120),comment=str(body.comment,2000);
+   if(title.length<3||comment.length<20)fail('Escribe un título y una opinión de al menos 20 caracteres.');
+   const blocked=unwrap(await d.from('profiles').select('is_banned').eq('id',u.id).single());
+   if(blocked.is_banned)fail('La cuenta está suspendida.');
+   const review={reviewer_id:u.id,subject,rating,title,comment,status:'pending'};
+   if(subject==='website'){
+    const existing=unwrap(await d.from('market_reviews').select('id').eq('reviewer_id',u.id).eq('subject','website').maybeSingle());
+    if(existing)fail('Ya publicaste una opinión sobre la website. Contacta a soporte si necesitas corregirla.');
+   }else{
+    const order=unwrap(await d.from('orders').select('id,listing_id,seller_id,buyer_id,status').eq('id',body.order_id).eq('buyer_id',u.id).single());
+    if(!['paid','shipped'].includes(order.status))fail('Solo puedes calificar piezas después de una compra real confirmada.');
+    if(order.seller_id===u.id)fail('No puedes calificar tus propias piezas.');
+    const duplicate=unwrap(await d.from('market_reviews').select('id').eq('order_id',order.id).maybeSingle());
+    if(duplicate)fail('Ya existe una opinión para esta compra.');
+    review.order_id=order.id;review.listing_id=order.listing_id;
+   }
+   const saved=await d.from('market_reviews').insert(review).select('id').single();
+   if(saved.error){if(saved.error.code==='23505')fail('Ya existe una opinión para esta compra.');throw saved.error;}
+   await audit(d,u.id,'review.submitted',saved.data.id,{subject});
+   return respond({ok:true,moderation:'pending'});
+  }
   if(action==='referral.claim'){
    const code=normalReferralCode(body.code);
    if(!code)fail('Código de referido inválido.');
@@ -220,6 +255,19 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.review'){
+    const status=exactStatus(body.status,['approved','rejected']);
+    const review=unwrap(await d.from('market_reviews').select('id,reviewer_id,subject,listing_id,order_id,status').eq('id',body.id).single());
+    if(review.status!=='pending')fail('Esta reseña ya fue revisada.');
+    if(review.reviewer_id===u.id)fail('No puedes aprobar tus propias opiniones.');
+    if(review.subject==='part'){
+     const order=unwrap(await d.from('orders').select('status,buyer_id,listing_id').eq('id',review.order_id).single());
+     if(!['paid','shipped'].includes(order.status)||order.buyer_id!==review.reviewer_id||order.listing_id!==review.listing_id)fail('La compra ya no respalda esta reseña.');
+    }
+    unwrap(await d.from('market_reviews').update({status,reviewed_at:new Date().toISOString(),updated_at:new Date().toISOString()}).eq('id',review.id).eq('status','pending').select('id').single());
+    await audit(d,u.id,'owner.review',review.id,{status});
+    return respond({ok:true});
+   }
    if(action==='admin.delivery'){
     const delivered_at=str(body.delivered_at,10),day=daysAfter(delivered_at);
     if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(delivered_at)||!Number.isInteger(day)||day<0)fail('Fecha de entrega inválida o futura.');
