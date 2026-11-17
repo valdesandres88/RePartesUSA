@@ -13,7 +13,7 @@
    const r=await fetch('/api/market?action=adsconfig',{cache:'no-store'});
    if(!r.ok)return;
    const s=await r.json(),id=String(s.publisher_id||'');
-   if(s.enabled!==true||!/^ca-pub-[0-9]{16}$/.test(id))return;
+   if(s.enabled!==true||!/^ca-pub-[0-9]{16}$/.test(id)||!eligible()||loaded)return;
    loaded=true;
    const script=document.createElement('script');
    script.async=true;script.crossOrigin='anonymous';
