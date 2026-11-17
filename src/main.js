@@ -1,9 +1,11 @@
 import {createClient} from '@supabase/supabase-js';
 import {money} from './money.js';
 import {reviewList,reviewForm,stars} from './reviews-ui.js';
+import {LANGUAGES,getLanguage,setLanguage,localize} from './i18n.js';
 import './styles.css';
 
 const cfg=import.meta.env;
+let currentLanguage=getLanguage();
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
 const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:'',currentReviews:null},app=document.getElementById('app');
 const refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
@@ -28,7 +30,8 @@ const socialLinks=()=>{const links=S.site?.settings?.social_links||{};const publ
 const googleOAuthReady=cfg.VITE_GOOGLE_SIGNIN_ENABLED==='true';
 function layout(inner){
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}</nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div>${socialLinks()}</footer>`;
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label></nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div>${socialLinks()}</footer>`;
+ localize(app,currentLanguage);
 }
 async function api(action,method='GET',body){
  const headers={};
@@ -236,6 +239,7 @@ document.addEventListener('submit',async ev=>{
   await route();
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
 });
+document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
 window.addEventListener('hashchange',route);
 (async()=>{
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
