@@ -6,6 +6,7 @@ const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
 const checkoutReady=()=>checkoutCredentialsCompatible(checkoutMode(),process.env.STRIPE_SECRET_KEY||'');
 const audit=async(d,actor,action,target,details={})=>{const {error}=await d.from('audit_log').insert({actor_id:actor,action,target_id:String(target||''),details});if(error)throw error;};
+const isPlatformSeller=id=>Boolean(process.env.OWNER_USER_ID)&&id===process.env.OWNER_USER_ID;
 const sellerReady=async(s,accountId)=>{if(!accountId)return false;const a=await s.accounts.retrieve(accountId);return Boolean(a.payouts_enabled&&a.capabilities?.transfers==='active');};
 export async function handler(event){
  try{
@@ -27,8 +28,9 @@ export async function handler(event){
   if(method==='GET'&&action==='me'){
    const u=await auth(event,d),seller=unwrap(await d.from('sellers').select('*').eq('user_id',u.id).maybeSingle());
    let account_ready=false;
-   if(seller?.stripe_account_id&&process.env.STRIPE_SECRET_KEY){try{account_ready=await sellerReady(stripe(),seller.stripe_account_id);}catch{}}
-   return respond({id:u.id,email:u.email,is_owner:u.id===process.env.OWNER_USER_ID,seller:seller&&{shop_name:seller.shop_name,status:seller.status,account_ready}});
+   if(seller&&isPlatformSeller(u.id))account_ready=true; // Owner's inventory settles to the platform account, not Express.
+   else if(seller?.stripe_account_id&&process.env.STRIPE_SECRET_KEY){try{account_ready=await sellerReady(stripe(),seller.stripe_account_id);}catch{}}
+   return respond({id:u.id,email:u.email,is_owner:u.id===process.env.OWNER_USER_ID,seller:seller&&{shop_name:seller.shop_name,status:seller.status,account_ready,is_platform_store:isPlatformSeller(u.id)}});
   }
   if(method==='GET'&&action==='referrals'){
    const u=await auth(event,d);
@@ -72,7 +74,7 @@ export async function handler(event){
    const returnRows=unwrap(returns),referralRows=unwrap(referrals),referred=referralRows.map(x=>x.referred_id);
    const purchases=referred.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',referred).in('status',['paid','shipped'])):[];
    const qualified=new Set(purchases.map(x=>x.buyer_id));
-   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:Boolean(stripe_account_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false}});
+   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false}});
 
   }
   if(method!=='POST')fail('Método no permitido.',405);
@@ -123,10 +125,12 @@ export async function handler(event){
    const name=str(body.shop_name,100);if(name.length<2)fail('Nombre de tienda demasiado corto.');
    const existing=unwrap(await d.from('sellers').select('user_id,status').eq('user_id',u.id).maybeSingle());
    if(existing)fail('Ya existe una solicitud de vendedor.');
-   unwrap(await d.from('sellers').insert({user_id:u.id,shop_name:name}));
-   await audit(d,u.id,'seller.apply',u.id,{shop_name:name});return respond({ok:true});
+   const ownStore=isPlatformSeller(u.id);
+   unwrap(await d.from('sellers').insert({user_id:u.id,shop_name:name,status:ownStore?'approved':'pending'}));
+   await audit(d,u.id,ownStore?'owner.store.created':'seller.apply',u.id,{shop_name:name});return respond({ok:true,owner_store:ownStore});
   }
   if(action==='seller.connect'){
+   if(isPlatformSeller(u.id))fail('La tienda Owner recibe pagos en la cuenta principal de Stripe. No necesita Stripe Express.',400);
    if(!process.env.STRIPE_SECRET_KEY)fail('Stripe no está configurado.',503);
    const seller=unwrap(await d.from('sellers').select('*').eq('user_id',u.id).single());
    if(seller.status==='suspended')fail('Tu tienda está suspendida.',403);
@@ -177,9 +181,11 @@ export async function handler(event){
    const seller=unwrap(await d.from('sellers').select('status,stripe_account_id').eq('user_id',part.seller_id).single());
    const sellerProfile=unwrap(await d.from('profiles').select('is_banned').eq('id',part.seller_id).single());
    if(sellerProfile.is_banned)fail('Este vendedor está suspendido.');
-   if(seller.status!=='approved'||!await sellerReady(s(),seller.stripe_account_id))fail('Este vendedor aún no está habilitado para pagos.');
-   const orderId=unwrap(await d.rpc('reserve_one',{p_listing:part.id,p_buyer:u.id,p_fee_bps:settings.commission_bps}));
-   const fee=Math.round(part.price_cents*settings.commission_bps/10000);
+   if(seller.status!=='approved'||(!isPlatformSeller(part.seller_id)&&!await sellerReady(s(),seller.stripe_account_id)))fail('Este vendedor aún no está habilitado para pagos.');
+   const ownerSale=isPlatformSeller(part.seller_id);
+   const feeBps=ownerSale?0:settings.commission_bps;
+   const orderId=unwrap(await d.rpc('reserve_one',{p_listing:part.id,p_buyer:u.id,p_fee_bps:feeBps}));
+   const fee=Math.round(part.price_cents*feeBps/10000);
    let checkout;
    try{
     checkout=await s().checkout.sessions.create({
@@ -189,7 +195,7 @@ export async function handler(event){
      shipping_address_collection:{allowed_countries:['US']},
      billing_address_collection:'required',
      automatic_tax:{enabled:process.env.STRIPE_TAX_ENABLED==='true'},
-     payment_intent_data:{application_fee_amount:fee,transfer_data:{destination:seller.stripe_account_id},metadata:{order_id:orderId}},
+     payment_intent_data:ownerSale?{metadata:{order_id:orderId,sale_type:'platform_inventory'}}:{application_fee_amount:fee,transfer_data:{destination:seller.stripe_account_id},metadata:{order_id:orderId}},
      success_url:`${SITE()}/#orders`,cancel_url:`${SITE()}/#part/${part.id}`,
      expires_at:Math.floor(Date.now()/1000)+1800
     },{idempotencyKey:`repartes_checkout_${orderId}`});
@@ -241,6 +247,7 @@ export async function handler(event){
     return respond({ok:true});
    }
    if(action==='admin.seller'){
+    if(isPlatformSeller(body.id))fail('No se puede suspender o cambiar la tienda del Owner desde este panel.');
     const status=exactStatus(body.status,['pending','approved','suspended']);
     unwrap(await d.from('sellers').update({status}).eq('user_id',body.id));
     await audit(d,u.id,'owner.seller',body.id,{status});return respond({ok:true});
@@ -253,7 +260,7 @@ export async function handler(event){
      if(body.verified_real_inventory!==true||!listing.seller_has_item||!listing.original_photo_attested||!genuineSellerPhoto(listing.image_url,listing.seller_id,process.env.SUPABASE_URL))fail('Verifica físicamente disponibilidad, fotografía original y datos del artículo antes de aprobar.');
      const seller=unwrap(await d.from('sellers').select('status,stripe_account_id').eq('user_id',listing.seller_id).single());
      if(seller.status!=='approved')fail('Aprueba primero al vendedor.');
-     if(!process.env.STRIPE_SECRET_KEY||!await sellerReady(s(),seller.stripe_account_id))fail('El vendedor debe completar Stripe Connect.');
+     if(!isPlatformSeller(listing.seller_id)&&(!process.env.STRIPE_SECRET_KEY||!await sellerReady(s(),seller.stripe_account_id)))fail('El vendedor debe completar Stripe Connect.');
     }
     unwrap(await d.from('listings').update({status,inventory_verified_by_owner:status==='approved',verified_at:status==='approved'?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',body.id).in('status',['pending','approved','rejected','removed']).select('id').single());
     await audit(d,u.id,'owner.listing',body.id,{status});return respond({ok:true});
@@ -279,7 +286,8 @@ export async function handler(event){
     if(!['paid','shipped'].includes(order.status)||!order.stripe_payment_intent_id)fail('Pedido no elegible para reembolso.');
     const existingReturn=unwrap(await d.from('return_requests').select('id,status').eq('order_id',order.id).maybeSingle());
     if(existingReturn&&existingReturn.status!=='received')fail('Primero confirma la recepción de la devolución.');
-    const refund=await s().refunds.create({payment_intent:order.stripe_payment_intent_id,reverse_transfer:true,refund_application_fee:true,reason:'requested_by_customer'},{idempotencyKey:`refund_full_${order.id}`});
+    const ownerSale=isPlatformSeller(order.seller_id);
+    const refund=await s().refunds.create({payment_intent:order.stripe_payment_intent_id,...(ownerSale?{}:{reverse_transfer:true,refund_application_fee:true}),reason:'requested_by_customer'},{idempotencyKey:`refund_full_${order.id}`});
     if(refund.status==='succeeded'){
      unwrap(await d.rpc('order_refunded',{p_order:order.id}));
      if(existingReturn)unwrap(await d.from('return_requests').update({status:'refunded'}).eq('id',existingReturn.id).eq('status','received').select('id').single());
