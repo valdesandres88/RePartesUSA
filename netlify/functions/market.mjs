@@ -1,20 +1,11 @@
 import {db,stripe,respond,fail,unwrap,auth,checkOrigin,str,positiveInt,exactStatus,validImage,asError} from './shared.mjs';
 import {checkoutCredentialsCompatible} from './payment-guards.mjs';
 import {randomBytes} from 'node:crypto';
-import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter} from './store-rules.mjs';
+import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter,genuineSellerPhoto} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
 const checkoutReady=()=>checkoutCredentialsCompatible(checkoutMode(),process.env.STRIPE_SECRET_KEY||'');
 const audit=async(d,actor,action,target,details={})=>{const {error}=await d.from('audit_log').insert({actor_id:actor,action,target_id:String(target||''),details});if(error)throw error;};
-function genuineSellerPhoto(url,userId){
- try{
-  const parsed=new URL(url),base=new URL(process.env.SUPABASE_URL);
-  const prefix='/storage/v1/object/public/part-photos/'+userId+'/';
-  return parsed.protocol==='https:' && parsed.origin===base.origin &&
-   parsed.pathname.startsWith(prefix) && /\\.(jpg|jpeg|png|webp)$/i.test(parsed.pathname) &&
-   !parsed.search && !parsed.hash;
- }catch{return false;}
-}
 const sellerReady=async(s,accountId)=>{if(!accountId)return false;const a=await s.accounts.retrieve(accountId);return Boolean(a.payouts_enabled&&a.capabilities?.transfers==='active');};
 export async function handler(event){
  try{
@@ -152,7 +143,7 @@ export async function handler(event){
    if(!seller||seller.status==='suspended')fail('Solicita una cuenta de vendedor primero.',403);
    const title=str(body.title,140),description=str(body.description,4000),make=str(body.make,60),model=str(body.model,60);
    const photo=str(body.image_url,900);
-   if(!genuineSellerPhoto(photo,u.id))fail('Sube una foto original de la pieza desde tu teléfono. No se permiten fotografías de catálogo ni imágenes externas.');
+   if(!genuineSellerPhoto(photo,u.id,process.env.SUPABASE_URL))fail('Sube una foto original de la pieza desde tu teléfono. No se permiten fotografías de catálogo ni imágenes externas.');
    if(body.seller_has_item!==true || body.original_photo_attested!==true)fail('Confirma que tienes físicamente la pieza y que la foto es auténtica.');
    const image_url=validImage(photo);
    const condition=exactStatus(body.condition,['used','remanufactured','new']);
@@ -259,7 +250,7 @@ export async function handler(event){
     const listing=unwrap(await d.from('listings').select('status,seller_id,image_url,seller_has_item,original_photo_attested').eq('id',body.id).single());
     if(['sold','reserved'].includes(listing.status))fail('No se puede alterar una venta o reserva activa.');
     if(status==='approved'){
-     if(body.verified_real_inventory!==true||!listing.seller_has_item||!listing.original_photo_attested||!genuineSellerPhoto(listing.image_url,listing.seller_id))fail('Verifica físicamente disponibilidad, fotografía original y datos del artículo antes de aprobar.');
+     if(body.verified_real_inventory!==true||!listing.seller_has_item||!listing.original_photo_attested||!genuineSellerPhoto(listing.image_url,listing.seller_id,process.env.SUPABASE_URL))fail('Verifica físicamente disponibilidad, fotografía original y datos del artículo antes de aprobar.');
      const seller=unwrap(await d.from('sellers').select('status,stripe_account_id').eq('user_id',listing.seller_id).single());
      if(seller.status!=='approved')fail('Aprueba primero al vendedor.');
      if(!process.env.STRIPE_SECRET_KEY||!await sellerReady(s(),seller.stripe_account_id))fail('El vendedor debe completar Stripe Connect.');
