@@ -1,6 +1,7 @@
 export function checkoutCredentialsCompatible(mode,secret){
  if(typeof secret!=='string')return false;
- return (mode==='test'&&secret.startsWith('sk_test_'))||(mode==='live'&&secret.startsWith('sk_live_'));
+ if(mode!=='test'&&mode!=='live')return false;
+ return new RegExp(`^(sk|rk)_${mode}_[A-Za-z0-9]+$`).test(secret);
 }
 export function paidSessionMatchesOrder(session,order){
  if(!session||!order)return false;
