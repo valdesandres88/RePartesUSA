@@ -1,5 +1,7 @@
 import {db,stripe,respond,fail,unwrap,auth,checkOrigin,str,positiveInt,exactStatus,validImage,asError} from './shared.mjs';
 import {checkoutCredentialsCompatible} from './payment-guards.mjs';
+import {randomBytes} from 'node:crypto';
+import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
 const checkoutReady=()=>checkoutCredentialsCompatible(checkoutMode(),process.env.STRIPE_SECRET_KEY||'');
@@ -28,13 +30,30 @@ export async function handler(event){
    if(seller?.stripe_account_id&&process.env.STRIPE_SECRET_KEY){try{account_ready=await sellerReady(stripe(),seller.stripe_account_id);}catch{}}
    return respond({id:u.id,email:u.email,is_owner:u.id===process.env.OWNER_USER_ID,seller:seller&&{shop_name:seller.shop_name,status:seller.status,account_ready}});
   }
+  if(method==='GET'&&action==='referrals'){
+   const u=await auth(event,d);
+   let record=unwrap(await d.from('referral_codes').select('code').eq('user_id',u.id).maybeSingle());
+   if(!record){
+    const proposed=randomBytes(6).toString('hex').toUpperCase();
+    const inserted=await d.from('referral_codes').insert({user_id:u.id,code:proposed});
+    if(inserted.error && inserted.error.code!=='23505')throw inserted.error;
+    record=unwrap(await d.from('referral_codes').select('code').eq('user_id',u.id).maybeSingle());
+    if(!record)fail('No fue posible crear el enlace. Inténtalo de nuevo.',503);
+   }
+   const invites=unwrap(await d.from('referrals').select('referred_id,created_at').eq('referrer_id',u.id).order('created_at',{ascending:false}).limit(500));
+   const ids=invites.map(x=>x.referred_id);
+   const paid=ids.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',ids).in('status',['paid','shipped'])):[];
+   const qualified=new Set(paid.map(x=>x.buyer_id));
+   return respond({code:record.code,invites:invites.length,qualified:qualified.size,recent:invites.slice(0,20).map(x=>({date:x.created_at,qualified:qualified.has(x.referred_id)})),rewards_enabled:false});
+  }
   if(method==='GET'&&action==='mine'){
    const u=await auth(event,d),[listings,buying,selling]=await Promise.all([
     d.from('listings').select('*').eq('seller_id',u.id).order('created_at',{ascending:false}).limit(200),
     d.from('orders').select('*,listings(title)').eq('buyer_id',u.id).order('created_at',{ascending:false}).limit(100),
     d.from('orders').select('*,listings(title)').eq('seller_id',u.id).order('created_at',{ascending:false}).limit(100)
    ]);
-   return respond({listings:unwrap(listings),purchases:unwrap(buying),sales:unwrap(selling)});
+   const returns=unwrap(await d.from('return_requests').select('id,order_id,reason,details,status,return_tracking,requested_at,authorized_at').eq('buyer_id',u.id).order('requested_at',{ascending:false}).limit(100));
+   return respond({listings:unwrap(listings),purchases:unwrap(buying),sales:unwrap(selling),returns});
   }
   if(method==='GET'&&action==='dashboard'){
    await auth(event,d,{owner:true});
@@ -46,10 +65,60 @@ export async function handler(event){
     d.from('site_settings').select('*').eq('id',1).single(),
     d.from('audit_log').select('*').order('created_at',{ascending:false}).limit(50)
    ]);
-   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:Boolean(stripe_account_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits)});
+   const [returns,referrals]=await Promise.all([
+    d.from('return_requests').select('id,order_id,buyer_id,reason,details,evidence_url,status,admin_note,return_tracking,requested_at,authorized_at,received_at').order('requested_at',{ascending:false}).limit(200),
+    d.from('referrals').select('referred_id,referrer_id,code,created_at').order('created_at',{ascending:false}).limit(200)
+   ]);
+   const returnRows=unwrap(returns),referralRows=unwrap(referrals),referred=referralRows.map(x=>x.referred_id);
+   const purchases=referred.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',referred).in('status',['paid','shipped'])):[];
+   const qualified=new Set(purchases.map(x=>x.buyer_id));
+   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,connect_configured:Boolean(stripe_account_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false}});
+
   }
   if(method!=='POST')fail('Método no permitido.',405);
   const u=await auth(event,d),s=stripe;
+  if(action==='referral.claim'){
+   const code=normalReferralCode(body.code);
+   if(!code)fail('Código de referido inválido.');
+   const profile=unwrap(await d.from('referral_codes').select('user_id,created_at').eq('code',code).maybeSingle());
+   if(!profile)fail('Código de referido no encontrado.',404);
+   if(profile.user_id===u.id)fail('No puedes referirte a ti mismo.');
+   const age=Date.now()-Date.parse(u.created_at||'');
+   if(!Number.isFinite(age)||age<0||age>7*86400000)fail('El referido debe registrarse durante los primeros 7 días.');
+   if(Date.parse(profile.created_at)>Date.parse(u.created_at)+60000)fail('El enlace debe existir antes del registro.');
+   const existing=unwrap(await d.from('referrals').select('referred_id').eq('referred_id',u.id).maybeSingle());
+   if(existing)return respond({ok:true,claimed:false});
+   const referrer=unwrap(await d.from('profiles').select('is_banned').eq('id',profile.user_id).single());
+   if(referrer.is_banned)fail('Este referido no está disponible.');
+   const past=unwrap(await d.from('orders').select('id').eq('buyer_id',u.id).limit(1));
+   if(past.length)fail('No se pueden asociar referidos a cuentas con pedidos anteriores.');
+   const added=await d.from('referrals').insert({referred_id:u.id,referrer_id:profile.user_id,code});
+   if(added.error){if(added.error.code==='23505')return respond({ok:true,claimed:false});throw added.error;}
+   await audit(d,u.id,'referral.claim',u.id,{code});
+   return respond({ok:true,claimed:true});
+  }
+  if(action==='return.request'){
+   const order=unwrap(await d.from('orders').select('id,buyer_id,seller_id,status,delivered_at').eq('id',body.order_id).eq('buyer_id',u.id).single());
+   if(order.status!=='shipped'||!order.delivered_at)fail('La entrega debe estar confirmada antes de solicitar la devolución.');
+   if(!canRequestReturn(order.delivered_at))fail('El plazo ordinario de 30 días ya venció. Contacta a soporte para revisar derechos aplicables.');
+   const reason=exactStatus(body.reason,['damaged','defective','wrong_item','not_as_described','incompatible','changed_mind','other']);
+   const details=str(body.details,2000),evidence_url=validImage(str(body.evidence_url,900));
+   if(details.length<20)fail('Describe el motivo con al menos 20 caracteres.');
+   const item=await d.from('return_requests').insert({order_id:order.id,buyer_id:u.id,seller_id:order.seller_id,reason,details,evidence_url}).select('id').single();
+   if(item.error){if(item.error.code==='23505')fail('Ya existe una solicitud para este pedido.');throw item.error;}
+   await audit(d,u.id,'return.request',order.id,{return_id:item.data.id,reason});
+   return respond({ok:true,id:item.data.id});
+  }
+  if(action==='return.tracking'){
+   const item=unwrap(await d.from('return_requests').select('id,status,authorized_at').eq('id',body.id).eq('buyer_id',u.id).single());
+   if(item.status!=='approved')fail('Esta devolución no está autorizada o ya tiene seguimiento.');
+   if(!canDispatchReturn(item.authorized_at))fail('Venció el plazo para despachar la devolución. Contacta a soporte.');
+   const code=str(body.tracking_code,120);
+   if(code.length<5)fail('Agrega un número de seguimiento real.');
+   unwrap(await d.from('return_requests').update({return_tracking:code,status:'in_transit'}).eq('id',item.id).eq('status','approved').select('id').single());
+   await audit(d,u.id,'return.tracking',item.id);
+   return respond({ok:true});
+  }
   if(action==='seller.apply'){
    const name=str(body.shop_name,100);if(name.length<2)fail('Nombre de tienda demasiado corto.');
    const existing=unwrap(await d.from('sellers').select('user_id,status').eq('user_id',u.id).maybeSingle());
@@ -133,6 +202,32 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.delivery'){
+    const delivered_at=str(body.delivered_at,10),day=daysAfter(delivered_at);
+    if(!/^\\d{4}-\\d{2}-\\d{2}$/.test(delivered_at)||!Number.isInteger(day)||day<0)fail('Fecha de entrega inválida o futura.');
+    const order=unwrap(await d.from('orders').select('id,status,shipped_at,tracking_code').eq('id',body.id).single());
+    if(order.status!=='shipped'||!order.tracking_code)fail('Verifica primero que exista un envío real con seguimiento.');
+    if(delivered_at < String(order.shipped_at||'').slice(0,10))fail('La entrega no puede anteceder al envío.');
+    unwrap(await d.from('orders').update({delivered_at}).eq('id',order.id).eq('status','shipped').select('id').single());
+    await audit(d,u.id,'owner.delivery',order.id,{delivered_at,verified_by_owner:true});
+    return respond({ok:true});
+   }
+   if(action==='admin.return'){
+    const status=exactStatus(body.status,['approved','rejected','received']);
+    const item=unwrap(await d.from('return_requests').select('id,order_id,status,authorized_at').eq('id',body.id).single());
+    if(['approved','rejected'].includes(status)&&item.status!=='requested')fail('La solicitud ya fue revisada.');
+    if(status==='received'&&!['approved','in_transit'].includes(item.status))fail('Esta devolución todavía no puede marcarse como recibida.');
+    if(status==='approved'){
+     const order=unwrap(await d.from('orders').select('delivered_at').eq('id',item.order_id).single());
+     if(!order.delivered_at)fail('No se confirmó la entrega.');
+    }
+    const changes={status,admin_note:str(body.note,1000)};
+    if(status==='approved')changes.authorized_at=new Date().toISOString();
+    if(status==='received')changes.received_at=new Date().toISOString();
+    unwrap(await d.from('return_requests').update(changes).eq('id',item.id).eq('status',item.status).select('id').single());
+    await audit(d,u.id,'owner.return',item.id,{status});
+    return respond({ok:true});
+   }
    if(action==='admin.seller'){
     const status=exactStatus(body.status,['pending','approved','suspended']);
     unwrap(await d.from('sellers').update({status}).eq('user_id',body.id));
@@ -168,8 +263,13 @@ export async function handler(event){
    if(action==='admin.refund'){
     const order=unwrap(await d.from('orders').select('*').eq('id',body.id).single());
     if(!['paid','shipped'].includes(order.status)||!order.stripe_payment_intent_id)fail('Pedido no elegible para reembolso.');
+    const existingReturn=unwrap(await d.from('return_requests').select('id,status').eq('order_id',order.id).maybeSingle());
+    if(existingReturn&&existingReturn.status!=='received')fail('Primero confirma la recepción de la devolución.');
     const refund=await s().refunds.create({payment_intent:order.stripe_payment_intent_id,reverse_transfer:true,refund_application_fee:true,reason:'requested_by_customer'},{idempotencyKey:`refund_full_${order.id}`});
-    if(refund.status==='succeeded')unwrap(await d.rpc('order_refunded',{p_order:order.id}));
+    if(refund.status==='succeeded'){
+     unwrap(await d.rpc('order_refunded',{p_order:order.id}));
+     if(existingReturn)unwrap(await d.from('return_requests').update({status:'refunded'}).eq('id',existingReturn.id).eq('status','received').select('id').single());
+    }
     await audit(d,u.id,'owner.refund',order.id,{amount_cents:order.amount_cents,stripe_refund_id:refund.id,status:refund.status});return respond({ok:true,refund_status:refund.status});
    }
   }
