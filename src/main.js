@@ -90,13 +90,15 @@ function referrals(){
 const actionButton=(type,id,status,label)=>`<button data-act="${type}" data-id="${esc(id)}" data-status="${esc(status)}">${esc(label)}</button>`;
 function owner(){
  if(!S.me?.is_owner){layout(authWall);return}
- const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
- const cards=[['Ventas cobradas',money(m.gross_cents)],['Comisiones brutas',money(m.commission_cents)],['Pedidos',m.orders_paid||0],['Anuncios pendientes',m.listings_pending||0],['Vendedores pendientes',m.sellers_pending||0],['Usuarios',m.buyers_total||0]];
+ const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
+ const cards=[['Ventas cobradas',money(m.gross_cents)],['Comisiones brutas',money(m.commission_cents)],['Pedidos',m.orders_paid||0],['Anuncios pendientes',m.listings_pending||0],['Vendedores pendientes',m.sellers_pending||0],['Usuarios',m.buyers_total||0],['Referidos registrados',d.referral_stats?.registered||0],['Referidos compradores',d.referral_stats?.qualified||0]];
  const sellers=(d.sellers||[]).map(x=>`<tr><td>${esc(x.shop_name)}</td><td>${statusBadge(x.status)}</td><td>${x.connect_configured?'Configurado':'Pendiente'}</td><td>${actionButton('sellerstatus',x.user_id,'approved','Aprobar')} ${actionButton('sellerstatus',x.user_id,'suspended','Suspender')}</td></tr>`).join('');
  const listings=(d.listings||[]).map(x=>`<tr><td>${esc(x.title)}</td><td>${money(x.price_cents)}</td><td>${statusBadge(x.status)}</td><td>${['reserved','sold'].includes(x.status)?'Bloqueado':actionButton('listingstatus',x.id,'approved','Aprobar')+' '+actionButton('listingstatus',x.id,'rejected','Rechazar')+' '+actionButton('listingstatus',x.id,'removed','Ocultar')}</td></tr>`).join('');
- const purchases=(d.orders||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${money(x.platform_fee_cents)}</td><td>${statusBadge(x.status)}</td><td>${['paid','shipped'].includes(x.status)?actionButton('refund',x.id,'','Reembolso'):'—'}</td></tr>`).join('');
+ const purchases=(d.orders||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${money(x.platform_fee_cents)}</td><td>${statusBadge(x.status)}</td><td>${x.status==='shipped'&&!x.delivered_at?actionButton('delivery',x.id,'','Confirmar entrega')+' ':''}${['paid','shipped'].includes(x.status)?actionButton('refund',x.id,'','Reembolso'):'—'}</td></tr>`).join('');
+ const returnRows=(d.returns||[]).map(x=>`<tr><td>${esc(x.order_id.slice(0,8))}</td><td>${esc(x.reason)}</td><td>${esc(x.details.slice(0,180))} ${x.evidence_url?'<a href="'+esc(x.evidence_url)+'" target="_blank" rel="noopener noreferrer">Foto</a>':''}</td><td>${statusBadge(x.status)}</td><td>${esc(x.return_tracking||'—')}</td><td>${x.status==='requested'?actionButton('returnstatus',x.id,'approved','Aprobar')+' '+actionButton('returnstatus',x.id,'rejected','Rechazar'):['approved','in_transit'].includes(x.status)?actionButton('returnstatus',x.id,'received','Marcar recibida'):x.status==='received'?actionButton('refund',x.order_id,'','Reembolsar vía Stripe'):'—'}</td></tr>`).join('');
+ const referralRows=(d.referrals||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.referred_id.slice(0,8))}</td><td>${date(x.created_at)}</td><td>${x.qualified?'Compra confirmada':'Registro'}</td></tr>`).join('');
  const users=(d.users||[]).map(x=>`<tr><td>${esc(x.display_name||'Sin nombre')}</td><td>${x.is_banned?'Suspendido':'Activo'}</td><td>${actionButton('userban',x.id,x.is_banned?'unban':'ban',x.is_banned?'Reactivar':'Suspender')}</td></tr>`).join('');
- layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form><h2>Vendedores</h2>${table(['Tienda','Estado','Stripe','Acciones'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
+ layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form><h2>Vendedores</h2>${table(['Tienda','Estado','Stripe','Acciones'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<p>Antes de aprobar una pieza, verifica personalmente que el vendedor la tiene, que la foto es real y que el producto está disponible.</p><h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Devoluciones (30 días desde entrega)</h2>${table(['Pedido','Motivo','Descripción','Estado','Seguimiento','Acción'],returnRows)}<h2>Referidos</h2><p>Registros: ${esc(d.referral_stats?.registered||0)} · Compradores: ${esc(d.referral_stats?.qualified||0)} · Recompensas desactivadas.</p>${table(['Código','Cuenta','Fecha','Estado'],referralRows)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
 }
 function publicInfo(kind){
  const email=S.site?.settings?.support_email||'';
@@ -144,10 +146,11 @@ async function route(){
  const current=++version,hash=(location.hash||'#home').slice(1),[p,id]=hash.split('/');
  layout('<section class="section"><h2>Cargando datos…</h2></section>');
  try{
-  if(['orders','sell'].includes(p)&&S.session)S.mine=await api('mine');
+  if(['orders','sell','return'].includes(p)&&S.session)S.mine=await api('mine');
+  if(p==='referrals'&&S.session)S.referrals=await api('referrals');
   if(p==='owner'&&S.me?.is_owner)S.admin=await api('dashboard');
   if(version!==current)return;
-  if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
+  if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
  }catch(err){layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
 async function refreshIdentity(){S.me=S.session?await api('me'):null}
@@ -158,27 +161,34 @@ document.addEventListener('click',async ev=>{
  b.disabled=true;
  try{
   if(a==='retry'){await route();return}
+  if(a==='copyref'){await navigator.clipboard.writeText(refUrl());toast('Enlace de referidos copiado');return}
   if(a==='logout'){await sb.auth.signOut();S.session=null;S.me=null;location.hash='#home';await route();return}
   if(a==='connect'){const r=await api('seller.connect','POST',{});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='checkout'){if(!S.session){location.hash='#login';return}if(!confirm('Continuar al pago protegido por Stripe?'))return;const r=await api('checkout','POST',{listing_id:id});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type!=='file'&&elem.type!=='checkbox')elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
+  if(a==='returntracking'){const t=prompt('Número real de seguimiento para devolver la pieza');if(!t)return;await api('return.tracking','POST',{id,tracking_code:t});toast('Envío de retorno registrado');await route();return}
+  if(a==='delivery'){const d=prompt('Fecha de entrega confirmada por transportista (AAAA-MM-DD)');if(!d)return;await api('admin.delivery','POST',{id,delivered_at:d});toast('Entrega registrada');await route();return}
   if(a==='ship'){const t=prompt('Número real de seguimiento');if(!t)return;await api('order.ship','POST',{id,tracking_code:t});toast('Seguimiento guardado');await route();return}
-  const actions={sellerstatus:'admin.seller',listingstatus:'admin.listing',userban:'admin.ban',refund:'admin.refund'};
+  const actions={sellerstatus:'admin.seller',listingstatus:'admin.listing',returnstatus:'admin.return',userban:'admin.ban',refund:'admin.refund'};
   if(actions[a]){
    if(!confirm('Confirmar esta operación administrativa?'))return;
    const payload=a==='userban'?{id,is_banned:status==='ban'}:a==='refund'?{id}:{id,status};
+   if(a==='listingstatus'&&status==='approved')payload.verified_real_inventory=confirm('¿Verificaste que el vendedor tiene físicamente la pieza, que la fotografía es original y la pieza está lista para envío?');
+   if(a==='listingstatus'&&status==='approved'&&!payload.verified_real_inventory)return;
+   if(a==='returnstatus')payload.note=prompt('Nota de revisión para el caso (opcional)')||'';
    await api(actions[a],'POST',payload);toast('Cambio registrado');await route();
   }
  }catch(err){toast(err.message)}finally{if(b.isConnected)b.disabled=false}
 });
 document.addEventListener('input',ev=>{if(ev.target.id==='search'){S.q=ev.target.value;home();document.getElementById('search')?.focus()}});
 document.addEventListener('submit',async ev=>{
- const f=ev.target;if(!['signin','signup','seller','listing','settings'].includes(f.id))return;ev.preventDefault();
+ const f=ev.target;if(!['signin','signup','seller','listing','settings','returnrequest'].includes(f.id))return;ev.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries()),button=f.querySelector('button');if(button)button.disabled=true;
  try{
   if(f.id==='signin'){const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;location.hash='#home'}
-  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash='#home'}
+  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash='#home'}
   if(f.id==='seller'){await api('seller.apply','POST',v);await refreshIdentity();toast('Solicitud enviada al Owner')}
+  if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('Solicitud enviada a revisión');location.hash='#orders'}
   if(f.id==='listing'){
     if(f.dataset.id)v.id=f.dataset.id;
     const file=f.elements.namedItem('part_photo')?.files?.[0];
@@ -205,7 +215,8 @@ window.addEventListener('hashchange',route);
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
   await Promise.all([refreshCatalog(),refreshIdentity()]);
-  sb.auth.onAuthStateChange((_event,session)=>{S.session=session;setTimeout(async()=>{try{await refreshIdentity();await route()}catch(err){toast(err.message)}},0)});
+  await claimRef();
+  sb.auth.onAuthStateChange((_event,session)=>{S.session=session;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
   await route();
  }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 })();
