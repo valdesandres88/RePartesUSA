@@ -20,3 +20,13 @@ export function normalReferralCode(value){
  const code=typeof value==='string'?value.trim().toUpperCase():'';
  return /^[A-Z0-9]{12}$/.test(code)?code:null;
 }
+
+export function genuineSellerPhoto(url,userId,supabaseUrl){
+ try{
+  const parsed=new URL(url),base=new URL(supabaseUrl);
+  const prefix='/storage/v1/object/public/part-photos/'+userId+'/';
+  return parsed.protocol==='https:' && parsed.origin===base.origin &&
+   parsed.pathname.startsWith(prefix) && /\.(jpg|jpeg|png|webp)$/i.test(parsed.pathname) &&
+   !parsed.search && !parsed.hash;
+ }catch{return false;}
+}
