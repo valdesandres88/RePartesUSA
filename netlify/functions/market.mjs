@@ -15,7 +15,7 @@ export async function handler(event){
   let body={};if(method==='POST'){checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
-    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email').eq('id',1).single(),
+    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,social_links').eq('id',1).single(),
     d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,public_contact_enabled,contact_email,contact_phone,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
    ]);
    const conf=unwrap(settings),listings=unwrap(items),ids=[...new Set(listings.map(x=>x.seller_id))];
@@ -265,6 +265,29 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.socials'){
+    const allowed={
+     x:['x.com','twitter.com'],telegram:['t.me','telegram.me'],
+     instagram:['instagram.com'],facebook:['facebook.com','fb.com'],
+     tiktok:['tiktok.com'],youtube:['youtube.com','youtu.be'],
+     threads:['threads.net'],pinterest:['pinterest.com'],
+     linkedin:['linkedin.com']
+    };
+    if(!body.links||typeof body.links!=='object'||Array.isArray(body.links))fail('Social links must be an object.');
+    const links={};
+    for(const [key,hosts] of Object.entries(allowed)){
+     const raw=str(body.links[key],350).trim();
+     if(!raw)continue;
+     let url;try{url=new URL(raw);}catch{fail('Invalid social link for '+key);}
+     const host=url.hostname.toLowerCase().replace(/^www\./,'');
+     if(url.protocol!=='https:'||url.username||url.password||url.port||!hosts.includes(host))fail('Use an official HTTPS profile URL for '+key+'.');
+     if(!url.pathname||url.pathname==='/')fail('Provide your specific profile, not the social network homepage: '+key);
+     links[key]=url.toString();
+    }
+    unwrap(await d.from('site_settings').update({social_links:links,updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
+    await audit(d,u.id,'owner.socials','settings',{platforms:Object.keys(links)});
+    return respond({ok:true,links});
+   }
    if(action==='admin.review'){
     const status=exactStatus(body.status,['approved','rejected']);
     const review=unwrap(await d.from('market_reviews').select('id,reviewer_id,subject,listing_id,order_id,status').eq('id',body.id).single());
