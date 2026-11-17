@@ -64,8 +64,28 @@ function sell(){
 const table=(heads,rows)=>`<div class="tablewrap"><table><thead><tr>${heads.map(x=>'<th>'+esc(x)+'</th>').join('')}</tr></thead><tbody>${rows||'<tr><td colspan="'+heads.length+'">Sin registros</td></tr>'}</tbody></table></div>`;
 function orders(){
  if(!S.session){layout(authWall);return}
- const rows=(S.mine?.purchases||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${statusBadge(x.status)}</td><td>${esc(x.tracking_code||'Pendiente')}</td><td>${date(x.created_at)}</td></tr>`).join('');
- layout(`<section class="section"><h1>Mis pedidos</h1>${table(['Pieza','Importe','Estado','Seguimiento','Fecha'],rows)}</section>`);
+ const returns=S.mine?.returns||[];
+ const rows=(S.mine?.purchases||[]).map(x=>{
+  const r=returns.find(y=>y.order_id===x.id),day=x.delivered_at?Date.parse(x.delivered_at+'T00:00:00Z'):NaN;
+  const age=Number.isFinite(day)?Math.floor((Date.now()-day)/86400000):NaN;
+  const action=r?statusBadge('Devolución '+r.status)+(r.status==='approved'?' <button data-act="returntracking" data-id="'+esc(r.id)+'">Registrar envío de retorno</button>':''):
+   x.status==='shipped'&&age>=0&&age<=30?'<a href="#return/'+esc(x.id)+'">Solicitar devolución</a>':
+   x.status==='shipped'?'<a href="#contact">Contactar soporte</a>':'—';
+  return `<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${statusBadge(x.status)}</td><td>${esc(x.tracking_code||'—')}</td><td>${esc(x.delivered_at||'—')}</td><td>${action}</td></tr>`;
+ }).join('');
+ layout(`<section class="section"><h1>Mis pedidos</h1><p>Solicitudes de devolución: 30 días naturales desde la entrega confirmada. <a href="#shipping">Leer política</a>.</p>${table(['Pieza','Importe','Estado','Tracking','Entregado','Devolución'],rows)}</section>`);
+}
+function returnForm(id){
+ if(!S.session){layout(authWall);return}
+ const order=(S.mine?.purchases||[]).find(x=>x.id===id);
+ if(!order){layout('<section class="section empty">Pedido no disponible. <a href="#orders">Volver</a></section>');return}
+ if((S.mine?.returns||[]).some(x=>x.order_id===id)){layout('<section class="section empty">Ya existe una solicitud de devolución para este pedido. <a href="#orders">Volver</a></section>');return}
+ layout(`<section class="section"><a href="#orders">← Mis pedidos</a><h1>Solicitar devolución</h1><p>Pedido ${esc(id)} · ${esc(order.listings?.title||'Autoparte')} · Entrega: ${esc(order.delivered_at||'pendiente')}</p><form id="returnrequest" class="panel" data-id="${esc(id)}"><label>Motivo<select name="reason" required><option value="damaged">Dañado al llegar</option><option value="defective">Defectuoso</option><option value="wrong_item">Pieza equivocada</option><option value="not_as_described">No coincide con el anuncio</option><option value="incompatible">Incompatibilidad</option><option value="changed_mind">Cambio de opinión</option><option value="other">Otro</option></select></label><label>Explica el caso (mínimo 20 caracteres)<textarea name="details" rows="5" minlength="20" maxlength="2000" required></textarea></label>${field('evidence_url','Enlace HTTPS a foto de evidencia (opcional)','','url',false)}<p>Espera la autorización e instrucciones antes de devolver la pieza.</p><button class="primary">Solicitar revisión</button></form></section>`);
+}
+function referrals(){
+ if(!S.session){layout('<section class="section"><h1>Programa de referidos RePartes USA</h1><p>Invita a personas nuevas mediante un enlace personal. Por ahora no hay dinero, puntos ni descuentos prometidos por las invitaciones.</p><a class="primary" href="#login">Crear una cuenta</a></section>');return}
+ const r=S.referrals||{code:'',invites:0,qualified:0,recent:[]};
+ layout(`<section class="section"><div class="eyebrow">INVITA Y COMPARTE</div><h1>Mi enlace de referidos</h1><p>Invita a nuevos usuarios y consulta sus registros y compras verificadas. Los referidos no generan pagos ni bonificaciones automáticas.</p><div class="metrics"><article class="metric"><small>Invitados registrados</small><strong>${esc(r.invites)}</strong></article><article class="metric"><small>Invitados con compra</small><strong>${esc(r.qualified)}</strong></article></div><div class="panel"><h2>Tu enlace personal</h2><input readonly aria-label="Enlace de referidos" value="${esc(refUrl())}"><button class="primary" data-act="copyref">Copiar enlace</button><p>No hay recompensa económica activa.</p></div><h2>Invitaciones recientes</h2>${table(['Fecha','Estado'],(r.recent||[]).map(x=>`<tr><td>${date(x.date)}</td><td>${x.qualified?'Compra confirmada':'Registrado'}</td></tr>`).join(''))}</section>`);
 }
 const actionButton=(type,id,status,label)=>`<button data-act="${type}" data-id="${esc(id)}" data-status="${esc(status)}">${esc(label)}</button>`;
 function owner(){
