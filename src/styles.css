@@ -37,3 +37,5 @@
 #offeradd .check,#adssettings .check{display:flex;align-items:flex-start;gap:10px}
 #offeradd .check input,#adssettings .check input{width:auto;margin-top:5px}
 #adssettings{border-color:#c6dcbf}
+
+.page-navigation{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 6%}.page-navigation button{min-height:44px;min-width:88px}.page-navigation button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
