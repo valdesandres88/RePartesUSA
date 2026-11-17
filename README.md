@@ -23,6 +23,16 @@ Los vendedores introducen seguimiento real del envío; el Owner registra la fech
 - Solicitud de devolución dentro de 30 días naturales desde la entrega confirmada, revisión Owner, autorización y registro del retorno. El reembolso real solo se procesa por Stripe y solo tras los controles establecidos.
 - Código y enlace personal para referidos; estadísticas de registros y compradores que completan una compra real. **No hay premios, créditos ni pagos de afiliados activados**.
 
+## Monetización legítima y publicidad automática
+
+- **Google AdSense Auto ads:** desde `/#owner` el Owner puede guardar su ID de editor real (`ca-pub-` + 16 dígitos). Esta operación publica automáticamente el archivo `/ads.txt` en el dominio de la web para verificar la titularidad. El script de publicidad permanece **apagado por defecto**.
+- Para encender los anuncios, el Owner debe verificar externamente que el sitio aparece como **Ready** en AdSense, preparar el contenido editorial suficiente, configurar una CMP certificada / avisos de privacidad y consentimiento donde apliquen, y marcar explícitamente ambas confirmaciones. El servidor bloquea la activación sin estos requisitos declarados. No hay publicidad ni ingresos garantizados sin aprobación y tráfico auténtico. El sitio no puede consultar automáticamente los ingresos de AdSense sin una conexión autorizada.
+- La publicidad se prepara para páginas públicas de catálogo o guías; no se carga deliberadamente en el acceso, pedidos, creación de anuncios ni Panel Owner. En el SPA, al navegar desde una página con anuncios a una privada se recarga para evitar que los scripts de publicidad permanezcan activos.
+- **Afiliados y patrocinadores:** el Owner puede registrar hasta 12 ofertas con enlaces HTTPS auténticos de socios aprobados; estos enlaces se muestran en la web etiquetados `Affiliate link` o `Sponsored placement` y con `rel=sponsored nofollow`. No hay ofertas de ejemplo ni enlaces de seguimiento inventados. Ingresos de afiliados requieren una relación aprobada con la red y conversiones válidas; patrocinios requieren contrato real.
+- **Contenido original indexable:** guías en `/guides/used-auto-parts.html` y `/guides/comprar-piezas-usadas.html`, enlazadas desde la página y publicadas en `/sitemap.xml`. Es contenido informativo general y no reemplaza verificación de compatibilidad o inspección profesional.
+- La información publicitaria se identifica en `/#advertising` y el aviso de privacidad informa sobre las tecnologías de terceros. Antes del lanzamiento publicitario, el Owner debe revisar obligaciones legales y de consentimiento por región.
+- **Pagos Stripe de piezas siguen desactivados** y no están conectados al interruptor de AdSense. No se activan anuncios destacados de pago, suscripciones, tarifas ni cobros a terceros de forma implícita.
+
 ## Infraestructura
 
 1. Netlify construye con `npm run build` y publica `dist`, usando las variables de `.env.example`.
