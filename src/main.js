@@ -27,7 +27,15 @@ const date=s=>s?new Date(s).toLocaleDateString('es-US'):'—';
 function toast(msg){window.alert(msg)}
 const SOCIAL_NETWORKS=[['x','X'],['telegram','Telegram'],['instagram','Instagram'],['facebook','Facebook'],['tiktok','TikTok'],['youtube','YouTube'],['threads','Threads'],['pinterest','Pinterest'],['linkedin','LinkedIn']];
 const socialLinks=()=>{const links=S.site?.settings?.social_links||{};const publicProfiles=SOCIAL_NETWORKS.filter(([k])=>links[k]);return publicProfiles.length?'<div class="social-profiles"><strong>Follow RePartes USA:</strong> '+publicProfiles.map(([k,label])=>'<a href="'+esc(links[k])+'" target="_blank" rel="noopener noreferrer nofollow">'+esc(label)+'</a>').join(' · ')+'</div>':''};
-const googleOAuthReady=cfg.VITE_GOOGLE_SIGNIN_ENABLED==='true';
+let googleOAuthReady=false;
+async function discoverGoogleOAuth(){
+ try{
+  const base=String(cfg.VITE_SUPABASE_URL||'').replace(/\/$/,'');
+  const resp=await fetch(base+'/auth/v1/settings',{headers:{apikey:cfg.VITE_SUPABASE_PUBLISHABLE_KEY},cache:'no-store'});
+  if(!resp.ok)return false;
+  const data=await resp.json();return data?.external?.google===true;
+ }catch{return false}
+}
 function layout(inner){
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
  app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label></nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div>${socialLinks()}</footer>`;
@@ -245,7 +253,10 @@ window.addEventListener('hashchange',route);
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
-  await Promise.all([refreshCatalog(),refreshIdentity()]);
+  const startup=await Promise.allSettled([refreshCatalog(),refreshIdentity(),discoverGoogleOAuth()]);
+  if(startup[0].status==='rejected')throw startup[0].reason;
+  if(startup[1].status==='rejected')throw startup[1].reason;
+  googleOAuthReady=startup[2].status==='fulfilled'&&startup[2].value===true;
   await claimRef();
   sb.auth.onAuthStateChange((_event,session)=>{S.session=session;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
   await route();
