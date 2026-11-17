@@ -6,6 +6,15 @@ const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
 const checkoutReady=()=>checkoutCredentialsCompatible(checkoutMode(),process.env.STRIPE_SECRET_KEY||'');
 const audit=async(d,actor,action,target,details={})=>{const {error}=await d.from('audit_log').insert({actor_id:actor,action,target_id:String(target||''),details});if(error)throw error;};
+function genuineSellerPhoto(url,userId){
+ try{
+  const parsed=new URL(url),base=new URL(process.env.SUPABASE_URL);
+  const prefix='/storage/v1/object/public/part-photos/'+userId+'/';
+  return parsed.protocol==='https:' && parsed.origin===base.origin &&
+   parsed.pathname.startsWith(prefix) && /\\.(jpg|jpeg|png|webp)$/i.test(parsed.pathname) &&
+   !parsed.search && !parsed.hash;
+ }catch{return false;}
+}
 const sellerReady=async(s,accountId)=>{if(!accountId)return false;const a=await s.accounts.retrieve(accountId);return Boolean(a.payouts_enabled&&a.capabilities?.transfers==='active');};
 export async function handler(event){
  try{
@@ -15,7 +24,7 @@ export async function handler(event){
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
     d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email').eq('id',1).single(),
-    d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,created_at').eq('status','approved').order('created_at',{ascending:false}).limit(100)
+    d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
    ]);
    const conf=unwrap(settings),listings=unwrap(items),ids=[...new Set(listings.map(x=>x.seller_id))];
    const sellers=ids.length?unwrap(await d.from('sellers').select('user_id,shop_name,status').in('user_id',ids)):[];
@@ -142,12 +151,16 @@ export async function handler(event){
    const seller=unwrap(await d.from('sellers').select('status').eq('user_id',u.id).maybeSingle());
    if(!seller||seller.status==='suspended')fail('Solicita una cuenta de vendedor primero.',403);
    const title=str(body.title,140),description=str(body.description,4000),make=str(body.make,60),model=str(body.model,60);
+   const photo=str(body.image_url,900);
+   if(!genuineSellerPhoto(photo,u.id))fail('Sube una foto original de la pieza desde tu teléfono. No se permiten fotografías de catálogo ni imágenes externas.');
+   if(body.seller_has_item!==true || body.original_photo_attested!==true)fail('Confirma que tienes físicamente la pieza y que la foto es auténtica.');
+   const image_url=validImage(photo);
    const condition=exactStatus(body.condition,['used','remanufactured','new']);
    const year_min=positiveInt(body.year_min,1950,2100),year_max=positiveInt(body.year_max,1950,2100);
    if(year_min>year_max||title.length<5||description.length<15||!make||!model)fail('Completa correctamente los datos de compatibilidad y descripción.');
    const dollars=String(body.price).trim();if(!/^(0|[1-9]\d{0,5})(\.\d{1,2})?$/.test(dollars))fail('Precio inválido.');
    const price_cents=Math.round(Number(dollars)*100);if(price_cents<1000||price_cents>10000000)fail('Precio permitido: $10 a $100,000.');
-   const data={title,description,make,model,year_min,year_max,condition,part_number:str(body.part_number,100),image_url:validImage(str(body.image_url,900)),price_cents,status:'pending',updated_at:new Date().toISOString()};
+   const data={title,description,make,model,year_min,year_max,condition,part_number:str(body.part_number,100),image_url,price_cents,status:'pending',seller_has_item:true,original_photo_attested:true,inventory_verified_by_owner:false,verified_at:null,updated_at:new Date().toISOString()};
    if(body.id){
     const prev=unwrap(await d.from('listings').select('status').eq('id',body.id).eq('seller_id',u.id).single());
     if(!['pending','approved','rejected'].includes(prev.status))fail('No puedes modificar una pieza ya vendida o reservada.');
@@ -161,7 +174,8 @@ export async function handler(event){
    if(!process.env.STRIPE_SECRET_KEY)fail('Stripe no está configurado.',503);
    const settings=unwrap(await d.from('site_settings').select('*').eq('id',1).single());
    if(!settings.payments_enabled||!checkoutReady())fail('Las compras están temporalmente desactivadas.',503);
-   const part=unwrap(await d.from('listings').select('id,title,price_cents,seller_id,status').eq('id',body.listing_id).single());
+   const part=unwrap(await d.from('listings').select('id,title,price_cents,seller_id,status,inventory_verified_by_owner').eq('id',body.listing_id).single());
+   if(part.status!=='approved'||!part.inventory_verified_by_owner)fail('La pieza aún no ha sido verificada para compra.',503);
    const seller=unwrap(await d.from('sellers').select('status,stripe_account_id').eq('user_id',part.seller_id).single());
    const sellerProfile=unwrap(await d.from('profiles').select('is_banned').eq('id',part.seller_id).single());
    if(sellerProfile.is_banned)fail('Este vendedor está suspendido.');
@@ -235,14 +249,15 @@ export async function handler(event){
    }
    if(action==='admin.listing'){
     const status=exactStatus(body.status,['approved','rejected','removed']);
-    const listing=unwrap(await d.from('listings').select('status,seller_id').eq('id',body.id).single());
+    const listing=unwrap(await d.from('listings').select('status,seller_id,image_url,seller_has_item,original_photo_attested').eq('id',body.id).single());
     if(['sold','reserved'].includes(listing.status))fail('No se puede alterar una venta o reserva activa.');
     if(status==='approved'){
+     if(body.verified_real_inventory!==true||!listing.seller_has_item||!listing.original_photo_attested||!genuineSellerPhoto(listing.image_url,listing.seller_id))fail('Verifica físicamente disponibilidad, fotografía original y datos del artículo antes de aprobar.');
      const seller=unwrap(await d.from('sellers').select('status,stripe_account_id').eq('user_id',listing.seller_id).single());
      if(seller.status!=='approved')fail('Aprueba primero al vendedor.');
      if(!process.env.STRIPE_SECRET_KEY||!await sellerReady(s(),seller.stripe_account_id))fail('El vendedor debe completar Stripe Connect.');
     }
-    unwrap(await d.from('listings').update({status,updated_at:new Date().toISOString()}).eq('id',body.id).in('status',['pending','approved','rejected','removed']).select('id').single());
+    unwrap(await d.from('listings').update({status,inventory_verified_by_owner:status==='approved',verified_at:status==='approved'?new Date().toISOString():null,updated_at:new Date().toISOString()}).eq('id',body.id).in('status',['pending','approved','rejected','removed']).select('id').single());
     await audit(d,u.id,'owner.listing',body.id,{status});return respond({ok:true});
    }
    if(action==='admin.settings'){
@@ -250,6 +265,7 @@ export async function handler(event){
     const commission_bps=positiveInt(body.commission_bps,500,3000),support_email=str(body.support_email,150);
     const payments_enabled=body.payments_enabled===true;
     if(payments_enabled&&(!checkoutReady()||!process.env.STRIPE_WEBHOOK_SECRET))fail('Configura el modo de cobro correcto y el webhook firmado antes de activar pagos.');
+    if(payments_enabled){const r=unwrap(await d.from('listings').select('id').eq('status','approved').eq('inventory_verified_by_owner',true).limit(1));if(!r.length)fail('Primero aprueba un producto real con foto original y vendedor con Stripe verificado.');}
     if(payments_enabled&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(support_email))fail('Agrega un correo de soporte válido antes de activar pagos.');
     if(!hero_title||!hero_subtitle)fail('Completa los textos principales.');
     unwrap(await d.from('site_settings').update({hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,updated_at:new Date().toISOString()}).eq('id',1));
