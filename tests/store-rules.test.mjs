@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {daysAfter,canRequestReturn,canDispatchReturn,normalReferralCode} from '../netlify/functions/store-rules.mjs';
+import {daysAfter,canRequestReturn,canDispatchReturn,normalReferralCode,genuineSellerPhoto} from '../netlify/functions/store-rules.mjs';
 
 test('30 calendar days after verified delivery is inclusive, 31 is not',()=>{
  const delivered='2026-11-01';
@@ -20,6 +20,17 @@ test('Return dispatch authorization allows 14 days',()=>{
 });
 test('Referral code is strict uppercase 12 hex character string',()=>{
  assert.equal(normalReferralCode(' abcdef012345 '),'ABCDEF012345');
- assert.equal(normalReferralCode('a/b/../../../'),'null'===true?'x':null);
+ assert.equal(normalReferralCode('a/b/../../../'),null);
  assert.equal(normalReferralCode('123'),null);
+});
+
+test('Only real seller-owned Supabase bucket photo URLs pass validation',()=>{
+ const base='https://example.supabase.co';
+ const photo=base+'/storage/v1/object/public/part-photos/seller-1/photo_abc123.jpg';
+ assert.equal(genuineSellerPhoto(photo,'seller-1',base),true);
+ assert.equal(genuineSellerPhoto(photo,'seller-2',base),false);
+ assert.equal(genuineSellerPhoto(photo.replace('part-photos','fake-photos'),'seller-1',base),false);
+ assert.equal(genuineSellerPhoto(photo+'?test=1','seller-1',base),false);
+ assert.equal(genuineSellerPhoto(photo.replace(base,'https://scam.example'),'seller-1',base),false);
+ assert.equal(genuineSellerPhoto(base+'/storage/v1/object/public/part-photos/seller-1/generated.svg','seller-1',base),false);
 });
