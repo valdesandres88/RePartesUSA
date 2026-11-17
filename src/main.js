@@ -27,15 +27,6 @@ const date=s=>s?new Date(s).toLocaleDateString('es-US'):'—';
 function toast(msg){window.alert(msg)}
 const SOCIAL_NETWORKS=[['x','X'],['telegram','Telegram'],['instagram','Instagram'],['facebook','Facebook'],['tiktok','TikTok'],['youtube','YouTube'],['threads','Threads'],['pinterest','Pinterest'],['linkedin','LinkedIn']];
 const socialLinks=()=>{const links=S.site?.settings?.social_links||{};const publicProfiles=SOCIAL_NETWORKS.filter(([k])=>links[k]);return publicProfiles.length?'<div class="social-profiles"><strong>Follow RePartes USA:</strong> '+publicProfiles.map(([k,label])=>'<a href="'+esc(links[k])+'" target="_blank" rel="noopener noreferrer nofollow">'+esc(label)+'</a>').join(' · ')+'</div>':''};
-let googleOAuthReady=false;
-async function discoverGoogleOAuth(){
- try{
-  const base=String(cfg.VITE_SUPABASE_URL||'').replace(/\/$/,'');
-  const resp=await fetch(base+'/auth/v1/settings',{headers:{apikey:cfg.VITE_SUPABASE_PUBLISHABLE_KEY},cache:'no-store'});
-  if(!resp.ok)return false;
-  const data=await resp.json();return data?.external?.google===true;
- }catch{return false}
-}
 function layout(inner){
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
  app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label></nav></header><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></div>${socialLinks()}</footer>`;
@@ -66,7 +57,7 @@ function part(id){
  layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Descripción del vendedor</h2><p>${esc(x.description)}</p></article><h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
 }
 function login(){
- layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register using your email address${googleOAuthReady?' or Google':''}. Other social networks are not used for registration.</p>${googleOAuthReady?'<div class="panel google-signin"><button type="button" class="primary" data-act="google-login">Continue with Google</button><p>Google handles the identity verification and account authorization.</p></div>':''}<div class="two"><form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form><form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
+ layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password. Google sign-in may be added later.</p><div class="two"><form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form><form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
 }
 function feedback(){
  if(!S.session){layout(authWall);return}
@@ -193,7 +184,6 @@ document.addEventListener('click',async ev=>{
  b.disabled=true;
  try{
   if(a==='retry'){await route();return}
-  if(a==='google-login'){if(!googleOAuthReady)throw Error('Google login is not yet configured.');const {error}=await sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:location.origin+location.pathname+'#home'}});if(error)throw error;return}
   if(a==='sellercommission'){const found=S.admin?.sellers?.find(x=>x.user_id===id);if(!found)return;const amount=prompt('Enter the new commission percentage for this seller (0–30%). Changes apply only to new sales.',(found.commission_bps/100).toFixed(2));if(amount===null)return;if(!/^\d{1,2}(\.\d{1,2})?$/.test(amount)||Number(amount)>30)throw Error('Enter a valid percentage from 0 to 30 with up to two decimals.');await api('admin.commission','POST',{id,commission_bps:Math.round(Number(amount)*100)});toast('Seller commission updated for future orders.');await route();return}
   if(a==='withdraw'){if(!confirm('¿Retirar esta pieza del mercado? No se podrá comprar.'))return;await api('listing.withdraw','POST',{id});toast('Anuncio retirado');await route();return}
   if(a==='copyref'){await navigator.clipboard.writeText(refUrl());toast('Enlace de referidos copiado');return}
@@ -253,10 +243,7 @@ window.addEventListener('hashchange',route);
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
-  const startup=await Promise.allSettled([refreshCatalog(),refreshIdentity(),discoverGoogleOAuth()]);
-  if(startup[0].status==='rejected')throw startup[0].reason;
-  if(startup[1].status==='rejected')throw startup[1].reason;
-  googleOAuthReady=startup[2].status==='fulfilled'&&startup[2].value===true;
+  await Promise.all([refreshCatalog(),refreshIdentity()]);
   await claimRef();
   sb.auth.onAuthStateChange((_event,session)=>{S.session=session;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
   await route();
