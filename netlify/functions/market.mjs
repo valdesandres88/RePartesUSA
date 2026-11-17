@@ -15,7 +15,7 @@ export async function handler(event){
   let body={};if(method==='POST'){checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
-    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,social_links').eq('id',1).single(),
+    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,social_links,adsense_publisher_id,adsense_enabled,monetization_offers').eq('id',1).single(),
     d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,public_contact_enabled,contact_email,contact_phone,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
    ]);
    const conf=unwrap(settings),listings=unwrap(items),ids=[...new Set(listings.map(x=>x.seller_id))];
@@ -24,6 +24,11 @@ export async function handler(event){
    const active=new Set(flags.filter(x=>!x.is_banned).map(x=>x.id));
    const lookup=new Map(sellers.filter(x=>x.status==='approved'&&active.has(x.user_id)).map(x=>[x.user_id,x.shop_name]));
    return respond({settings:conf,listings:listings.filter(x=>lookup.has(x.seller_id)).map(x=>({...x,shop_name:lookup.get(x.seller_id),contact_email:x.public_contact_enabled?x.contact_email:'',contact_phone:x.public_contact_enabled?x.contact_phone:''}))});
+  }
+  if(method==='GET'&&action==='adsconfig'){
+   const settings=unwrap(await d.from('site_settings').select('adsense_enabled,adsense_publisher_id').eq('id',1).single());
+   const id=settings.adsense_publisher_id||'';
+   return respond({enabled:settings.adsense_enabled===true&&/^ca-pub-[0-9]{16}$/.test(id),publisher_id:/^ca-pub-[0-9]{16}$/.test(id)?id:''});
   }
   if(method==='GET'&&action==='reviews'){
    const scope=(event.queryStringParameters||{}).scope==='part'?'part':'website';
@@ -265,6 +270,40 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.ads'){
+    const adsense_publisher_id=str(body.adsense_publisher_id,40);
+    const adsense_enabled=body.adsense_enabled===true;
+    if(adsense_publisher_id&&!/^ca-pub-[0-9]{16}$/.test(adsense_publisher_id))fail('Paste the complete AdSense publisher ID: ca-pub- followed by 16 digits.');
+    if(adsense_enabled&&(!adsense_publisher_id||body.confirm_approved!==true||body.confirm_privacy!==true))fail('Enable ads only after AdSense says Ready and you have configured applicable consent and privacy notices.');
+    unwrap(await d.from('site_settings').update({adsense_publisher_id,adsense_enabled,updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
+    await audit(d,u.id,'owner.adsense.config','adsense',{enabled:adsense_enabled,publisher_id_present:Boolean(adsense_publisher_id)});
+    return respond({ok:true,enabled:adsense_enabled});
+   }
+   if(action==='admin.offer.add'){
+    const kind=exactStatus(body.kind,['affiliate','sponsored']);
+    const placement=exactStatus(body.placement,['home','part']);
+    const title=str(body.title,100),description=str(body.description,260),raw=str(body.url,1500);
+    if(title.length<4||description.length<15||raw.length<12||body.confirm_relationship!==true)fail('Fill all offer fields and confirm a real commercial relationship or approved affiliate link.');
+    let target;try{target=new URL(raw);}catch{fail('Enter an HTTPS affiliate or sponsor URL.');}
+    if(target.protocol!=='https:'||target.username||target.password||!target.hostname.includes('.')||target.hostname==='localhost'||target.hostname.endsWith('.local'))fail('Only public HTTPS commercial links are permitted.');
+    const settings=unwrap(await d.from('site_settings').select('monetization_offers').eq('id',1).single());
+    const existing=Array.isArray(settings.monetization_offers)?settings.monetization_offers:[];
+    if(existing.length>=12)fail('Maximum of 12 approved offers.');
+    const offer={id:randomBytes(12).toString('hex'),kind,placement,title,description,url:target.toString()};
+    unwrap(await d.from('site_settings').update({monetization_offers:[...existing,offer],updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
+    await audit(d,u.id,'owner.offer.add',offer.id,{kind,placement});
+    return respond({ok:true,offer});
+   }
+   if(action==='admin.offer.remove'){
+    const id=str(body.id,24);
+    if(!/^[0-9a-f]{24}$/.test(id))fail('Invalid offer ID.');
+    const settings=unwrap(await d.from('site_settings').select('monetization_offers').eq('id',1).single());
+    const current=Array.isArray(settings.monetization_offers)?settings.monetization_offers:[];
+    if(!current.some(x=>x.id===id))fail('This offer no longer exists.',404);
+    unwrap(await d.from('site_settings').update({monetization_offers:current.filter(x=>x.id!==id),updated_at:new Date().toISOString()}).eq('id',1).select('id').single());
+    await audit(d,u.id,'owner.offer.remove',id);
+    return respond({ok:true});
+   }
    if(action==='admin.socials'){
     const allowed={
      x:['x.com','twitter.com'],telegram:['t.me','telegram.me'],
