@@ -151,6 +151,45 @@ const enToEsExtras={
 'Approval is required':'Se requiere aprobación',
 'Default commission':'Comisión predeterminada','Owner Dashboard':'Panel Owner'
 };
+Object.assign(enToEsExtras,{
+ "Commercial partners": "Socios comerciales",
+ "Useful links from partners": "Enlaces útiles de nuestros socios",
+ "Paid advertising and affiliate links are identified. RePartes USA may earn a commission from qualifying purchases made through affiliate links, at no extra charge to you. External providers set their own prices and terms.": "La publicidad y los enlaces de afiliados están identificados. RePartes USA podría recibir comisiones por compras elegibles mediante esos enlaces, sin costo adicional para ti. Los comercios externos fijan sus propios precios y condiciones.",
+ "Affiliate link": "Enlace de afiliado",
+ "Sponsored placement": "Espacio patrocinado",
+ "Visit partner website ↗": "Visitar sitio del socio ↗",
+ "Auto parts buyer guide": "Guía para comprar autopartes",
+ "Auto parts buying guide": "Guía de compra de autopartes",
+ "Learn how to verify fitment, compare used parts, and avoid common purchasing mistakes. No product listings are invented.": "Aprende a verificar la compatibilidad, comparar piezas usadas y evitar errores comunes. No inventamos productos.",
+ "Read the guide ↗": "Leer la guía ↗",
+ "Publicidad y afiliados": "Publicidad y afiliados",
+ "Advertising — Google AdSense Auto ads": "Publicidad — Anuncios automáticos de Google AdSense",
+ "Ads are OFF by default. Saving your real publisher ID enables ads.txt verification; it does NOT activate ads. Google must approve this site, and consent/privacy settings must be completed before turning ads on. No income is guaranteed.": "Los anuncios comienzan desactivados. Guardar tu ID real de AdSense permite verificar ads.txt; NO activa anuncios. Google debe aprobar la web y debes completar los ajustes de privacidad y consentimiento antes de activarlos. No se garantizan ingresos.",
+ "Your real AdSense publisher ID (ca-pub-XXXXXXXXXXXXXXXX)": "Tu ID real de editor AdSense (ca-pub-XXXXXXXXXXXXXXXX)",
+ "Enable automatic ads on public pages (not account / Owner pages)": "Activar publicidad automática en páginas públicas (no en cuentas ni Panel Owner)",
+ "I confirm that AdSense shows this site as Ready / approved": "Confirmo que AdSense muestra este sitio como aprobado / Ready",
+ "I confirm I configured required Google CMP / privacy messages and reviewed applicable laws": "Confirmo que configuré los avisos de consentimiento y privacidad de Google exigibles y revisé las leyes aplicables",
+ "Save advertising settings": "Guardar configuración de publicidad",
+ "Affiliate & sponsor partners": "Afiliados y patrocinadores",
+ "Only add valid affiliate tracking links from networks that accepted you, or sponsorships agreed directly with real businesses. Every public promotion is clearly labelled. No sponsored traffic or fake clicks.": "Agrega únicamente enlaces de afiliado válidos de programas que te aceptaron o acuerdos verdaderos con patrocinadores. Toda promoción pública se identifica claramente. No se permiten clics falsos.",
+ "No commercial offers yet.": "Todavía no hay ofertas comerciales.",
+ "Add a genuine commercial offer": "Agregar oferta comercial real",
+ "Type": "Tipo",
+ "Affiliate referral link": "Enlace de afiliado",
+ "Paid sponsorship": "Patrocinio pagado",
+ "Placement": "Ubicación",
+ "Homepage / catalog": "Inicio / catálogo",
+ "Real part pages": "Páginas de piezas reales",
+ "Advertiser / partner title": "Nombre del patrocinador / socio",
+ "Exact HTTPS tracking or sponsor URL": "Enlace HTTPS exacto con seguimiento o enlace del patrocinador",
+ "Short useful description": "Descripción breve y útil",
+ "I confirm this is my real affiliate tracking link or a real sponsor agreement.": "Confirmo que este es mi enlace de afiliado auténtico o un acuerdo real con un patrocinador.",
+ "Add approved partner offer": "Agregar socio comercial verificado",
+ "Remove offer": "Eliminar oferta",
+ "Sign in or register with your email address and password. Google sign-in may be added later.": "Inicia sesión o regístrate con correo electrónico y contraseña. Más adelante podremos agregar Google.",
+ "Advertising and commercial links": "Publicidad y enlaces comerciales",
+ "Advertising, sponsorships and affiliate links": "Publicidad, patrocinadores y enlaces de afiliados"
+});
 export function localize(root,language){
  const dictionary=language==='en'?esToEn:{...Object.fromEntries(Object.entries(esToEn).map(([es,en])=>[en,es])),...enToEsExtras};
  const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);
