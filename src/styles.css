@@ -39,3 +39,20 @@
 #adssettings{border-color:#c6dcbf}
 
 .page-navigation{position:sticky;top:0;z-index:20;background:var(--bg);border-bottom:1px solid var(--line);padding:8px 6%}.page-navigation button{min-height:44px;min-width:88px}.page-navigation button:focus-visible{outline:3px solid var(--green);outline-offset:3px}
+
+/* Mobile-first part request dialog */
+.page-navigation .request-launcher{margin-left:auto;background:var(--forest);color:white}
+.part-request-dialog{border:1px solid var(--line);border-radius:28px;padding:34px;width:min(650px,calc(100vw - 28px));max-height:90dvh;overflow-y:auto;color:var(--ink);background:#fff;box-shadow:0 28px 90px #0d29294d}
+.part-request-dialog::backdrop{background:#0b2626a6;backdrop-filter:blur(5px)}
+.request-close{position:absolute;right:18px;top:18px;border:0;border-radius:50%;width:36px;height:36px;padding:0;font-size:27px;line-height:1;background:var(--bg);color:var(--muted)}
+.request-eyebrow{font-size:10px;letter-spacing:.15em;font-weight:800;color:var(--forest);margin:4px 35px 12px 0}
+.part-request-dialog h2{font-size:clamp(25px,4vw,36px);line-height:1.16;letter-spacing:-.035em;margin:0 20px 12px 0}
+.request-intro{color:var(--muted);font-size:15px;margin:0 0 24px}
+.vehicle-card{padding:20px;border:1px solid var(--line);border-radius:20px;background:linear-gradient(150deg,#f4f8f4,#fff);margin-bottom:18px}
+.vehicle-label{font-size:11px;letter-spacing:.15em;font-weight:800;color:var(--forest);margin-bottom:16px;display:flex;align-items:center;gap:9px}.vehicle-label>span{font-size:24px;letter-spacing:0}
+.request-vehicle{display:grid;grid-template-columns:.75fr 1fr 1fr;gap:10px}.part-request-dialog label{display:block;font-size:12px;font-weight:750;margin-bottom:12px}.part-request-dialog input,.part-request-dialog textarea{display:block;width:100%;min-width:0;border:1px solid var(--line);border-radius:11px;background:white;padding:12px;margin-top:6px;color:var(--ink);font-size:16px;font-weight:400}.part-request-dialog input:focus,.part-request-dialog textarea:focus{outline:3px solid #d7eccc;border-color:var(--green)}
+.fitment-note{font-size:11px;line-height:1.55;color:var(--muted);margin:0 0 18px}.request-part{margin-bottom:0!important}.request-part input{border:1px solid #9abfa7;background:#fcfff8;box-shadow:0 0 0 3px #e6efdf}
+.request-contact{display:grid;grid-template-columns:1fr 1fr;gap:12px}.request-optional{font-weight:400;color:var(--muted)}
+.part-request-dialog .request-consent{display:flex;align-items:flex-start;gap:10px;font-size:12px;font-weight:400;line-height:1.5}.request-consent input{display:inline-block;flex:0 0 19px;width:19px;height:19px;margin:0}.request-consent a{text-decoration:underline}
+.request-submit{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;font-size:16px;border-radius:30px}.request-footnote{font-size:11px;text-align:center;color:var(--muted);margin:12px 0 14px}.request-result{font-size:13px;color:#a32925}.request-result:empty{display:none}.request-result.success{color:var(--forest);background:#e8f5e9;padding:14px;border-radius:12px}.request-clear{font-size:11px;padding:5px 9px;display:block;margin:auto}.request-draft-note{display:block;font-size:10px;color:var(--muted);text-align:center;margin:9px 0 0}.request-honeypot{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}.request-inbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}.request-inbox-card{padding:20px;border:1px solid var(--line);border-radius:16px;overflow-wrap:anywhere}.request-inbox-card h3{margin:12px 0 8px}.request-inbox-card small{display:block;margin-bottom:14px;color:var(--muted)}
+@media(max-width:520px){.part-request-dialog{padding:27px 20px;border-radius:23px;max-height:88dvh}.vehicle-card{padding:15px}.request-contact{grid-template-columns:1fr;gap:0}.request-vehicle{gap:7px}.request-vehicle input{padding:11px 8px}.request-intro{font-size:13px}.request-close{right:12px;top:12px}.page-navigation{gap:10px}.page-navigation button{font-size:12px}}

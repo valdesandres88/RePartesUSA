@@ -1,5 +1,6 @@
 import {db,stripe,respond,unwrap} from './shared.mjs';
 import {paidSessionMatchesOrder,stripeModeMatches,sessionMatchesOrder} from './payment-guards.mjs';
+import {processCheckoutTestEvent} from '../lib/checkout-tests.mjs';
 export async function handler(event){
  if(event.httpMethod!=='POST')return respond({error:'Método no permitido'},405);
  if(!process.env.STRIPE_WEBHOOK_SECRET)return respond({error:'Webhook sin configurar'},503);
@@ -11,6 +12,7 @@ export async function handler(event){
  try{
   if(!stripeModeMatches(process.env.CHECKOUT_MODE,incoming.livemode))return respond({error:'Stripe environment mismatch'},400);
   const d=db(),obj=incoming.data.object;
+  if(incoming.livemode===false&&await processCheckoutTestEvent(incoming,d))return respond({received:true,test:true});
   if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(incoming.type)){
    if(obj.payment_status!=='paid')return respond({received:true});
    const id=obj.metadata?.order_id||obj.client_reference_id;

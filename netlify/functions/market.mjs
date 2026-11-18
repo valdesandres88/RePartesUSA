@@ -1,6 +1,8 @@
 import {db,stripe,respond,fail,unwrap,auth,checkOrigin,str,positiveInt,exactStatus,validImage,asError} from './shared.mjs';
 import {checkoutCredentialsCompatible} from './payment-guards.mjs';
 import {randomBytes} from 'node:crypto';
+import {handleCheckoutTest} from '../lib/checkout-tests.mjs';
+import {submitPartRequest} from '../lib/part-requests.mjs';
 import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter,genuineSellerPhoto} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
@@ -13,6 +15,11 @@ export async function handler(event){
   if(!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.SUPABASE_URL)fail('Falta configuración privada de Supabase.',503);
   const d=db(),method=event.httpMethod,action=new URLSearchParams(event.queryStringParameters||{}).get('action')||'site';
   let body={};if(method==='POST'){checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
+  if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));
+  if(method==='GET'&&action==='part-requests'){
+   await auth(event,d,{owner:true});
+   return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,status,created_at').order('created_at',{ascending:false}).limit(100))});
+  }
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
     d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,social_links,adsense_publisher_id,adsense_enabled,monetization_offers').eq('id',1).single(),
@@ -71,6 +78,11 @@ export async function handler(event){
    ]);
    const returns=unwrap(await d.from('return_requests').select('id,order_id,reason,details,status,return_tracking,requested_at,authorized_at').eq('buyer_id',u.id).order('requested_at',{ascending:false}).limit(100));
    return respond({listings:unwrap(listings),purchases:unwrap(buying),sales:unwrap(selling),returns});
+  }
+  if(method==='GET'&&action==='checkout-test'){
+   await auth(event,d,{owner:true});
+   const record=unwrap(await d.from('checkout_tests').select('id,status,paid_webhook_at,refund_webhook_at,created_at').order('created_at',{ascending:false}).limit(1).maybeSingle());
+   return respond({mode:checkoutMode(),configured:checkoutReady(),record});
   }
   if(method==='GET'&&action==='dashboard'){
    await auth(event,d,{owner:true});
@@ -270,6 +282,12 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.checkout-test.start'||action==='admin.checkout-test.refund')return respond(await handleCheckoutTest(action.split('.').at(-1),{database:d,client:s(),user:{...u,is_owner:true},site:SITE(),mode:checkoutMode(),key:process.env.STRIPE_SECRET_KEY}));
+   if(action==='admin.quote.status'){
+    const status=exactStatus(body.status,['new','reviewing','closed']);
+    unwrap(await d.from('part_requests').update({status}).eq('id',str(body.id,40)).select('id').single());
+    await audit(d,u.id,'owner.quote.status',body.id,{status});return respond({ok:true});
+   }
    if(action==='admin.ads'){
     const adsense_publisher_id=str(body.adsense_publisher_id,40);
     const adsense_enabled=body.adsense_enabled===true;
@@ -402,6 +420,10 @@ export async function handler(event){
     const commission_bps=positiveInt(body.commission_bps,500,3000),support_email=str(body.support_email,150);
     const payments_enabled=body.payments_enabled===true;
     if(payments_enabled&&(!checkoutReady()||!process.env.STRIPE_WEBHOOK_SECRET))fail('Configura el modo de cobro correcto y el webhook firmado antes de activar pagos.');
+    if(payments_enabled&&checkoutMode()==='live'){
+     const passed=unwrap(await d.from('checkout_tests').select('id').eq('status','refunded').not('paid_webhook_at','is',null).not('refund_webhook_at','is',null).limit(1));
+     if(!passed.length)fail('Complete the private test purchase and refund, including both verified webhooks, before enabling live customer payments.');
+    }
     if(payments_enabled){const r=unwrap(await d.from('listings').select('id').eq('status','approved').eq('inventory_verified_by_owner',true).limit(1));if(!r.length)fail('Primero aprueba un producto real con foto original y vendedor con Stripe verificado.');}
     if(payments_enabled&&!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(support_email))fail('Agrega un correo de soporte válido antes de activar pagos.');
     if(!hero_title||!hero_subtitle)fail('Completa los textos principales.');
