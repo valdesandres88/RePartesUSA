@@ -21,6 +21,10 @@
   to = "/.netlify/functions/ads-text"
   status = 200
 [[redirects]]
+  from = "/api/partner-search"
+  to = "/.netlify/functions/partner-search"
+  status = 200
+[[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200

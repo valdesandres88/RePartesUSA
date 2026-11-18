@@ -3,6 +3,7 @@ import {checkoutCredentialsCompatible} from './payment-guards.mjs';
 import {randomBytes} from 'node:crypto';
 import {handleCheckoutTest} from '../lib/checkout-tests.mjs';
 import {submitPartRequest} from '../lib/part-requests.mjs';
+import {supplierConfiguration} from '../lib/partner-inventory.mjs';
 import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter,genuineSellerPhoto} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
 const checkoutMode=()=>process.env.CHECKOUT_MODE||'disabled';
@@ -16,6 +17,10 @@ export async function handler(event){
   const d=db(),method=event.httpMethod,action=new URLSearchParams(event.queryStringParameters||{}).get('action')||'site';
   let body={};if(method==='POST'){checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
   if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));
+  if(method==='GET'&&action==='supplier-status'){
+   await auth(event,d,{owner:true});
+   return respond(supplierConfiguration());
+  }
   if(method==='GET'&&action==='part-requests'){
    await auth(event,d,{owner:true});
    return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,status,created_at').order('created_at',{ascending:false}).limit(100))});
