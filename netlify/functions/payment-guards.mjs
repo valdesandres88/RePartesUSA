@@ -8,3 +8,9 @@ export function paidSessionMatchesOrder(session,order){
  const oid=session.metadata?.order_id||session.client_reference_id;
  return session.payment_status==='paid'&&oid===order.id&&typeof order.stripe_session_id==='string'&&order.stripe_session_id===session.id&&session.currency==='usd'&&session.amount_subtotal===order.amount_cents&&typeof session.payment_intent==='string'&&session.payment_intent.startsWith('pi_');
 }
+export function stripeModeMatches(mode,livemode){
+ return (mode==='test'&&livemode===false)||(mode==='live'&&livemode===true);
+}
+export function sessionMatchesOrder(session,order){
+ return Boolean(session&&order&&session.id===order.stripe_session_id&&(session.metadata?.order_id||session.client_reference_id)===order.id);
+}

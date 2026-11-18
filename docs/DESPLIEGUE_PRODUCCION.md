@@ -38,7 +38,7 @@ No compartas ni publiques secretos. Las variables `VITE_` sí quedan visibles en
 - El owner activa compras en `/#owner` cuando `CHECKOUT_MODE` y el webhook están bien configurados.
 
 ## 5. Reconciliación de reservas
-El backend expone un endpoint con secreto: `POST /api/cleanup` y header `Authorization: Bearer <CRON_SECRET>`. Programa ejecución cada 15 minutos en GitHub Actions u otro scheduler después de tener el sitio y los secretos configurados. Sin ello podrían quedar reservas no pagadas bloqueadas. No programes un job sin configurar primero el secreto.
+Netlify runs `reservation-recovery` every 15 minutes on published deploys. It checks reservations older than 35 minutes against Stripe and validates environment, session, order and amount. Only orphaned or expired reservations are released; pending asynchronous payments remain reserved. Each run checks up to 20 orders within a 20-second processing budget. Verify its Scheduled badge and successful logs before launch. The optional manual endpoint `POST /api/cleanup` still requires `Authorization: Bearer <CRON_SECRET>`. The built-in schedule does not need that secret.
 
 ## 6. Precauciones operativas
 - El catálogo no tiene productos inventados. Las órdenes, ventas y comisiones deben comenzar en cero.

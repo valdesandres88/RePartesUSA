@@ -239,7 +239,7 @@ export async function handler(event){
    let checkout;
    try{
     checkout=await s().checkout.sessions.create({
-     mode:'payment',payment_method_types:['card'],customer_email:u.email,
+     mode:'payment',customer_email:u.email,
      client_reference_id:orderId,metadata:{order_id:orderId},
      line_items:[{price_data:{currency:'usd',unit_amount:part.price_cents,product_data:{name:part.title,description:'Pieza de vendedor independiente · Envío incluido en precio'}},quantity:1}],
      shipping_address_collection:{allowed_countries:['US']},

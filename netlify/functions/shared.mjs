@@ -1,7 +1,7 @@
 import {createClient} from '@supabase/supabase-js';
 import Stripe from 'stripe';
 export const db=()=>createClient(process.env.SUPABASE_URL,process.env.SUPABASE_SERVICE_ROLE_KEY,{auth:{autoRefreshToken:false,persistSession:false}});
-export const stripe=()=>new Stripe(process.env.STRIPE_SECRET_KEY);
+export const stripe=options=>new Stripe(process.env.STRIPE_SECRET_KEY,options);
 export const respond=(data,status=200)=>({statusCode:status,headers:{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store','X-Content-Type-Options':'nosniff'},body:JSON.stringify(data)});
 export function fail(message,status=400){const e=new Error(message);e.status=status;throw e;}
 export function unwrap({data,error}){if(error)throw error;return data;}
