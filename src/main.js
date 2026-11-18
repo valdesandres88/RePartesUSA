@@ -6,6 +6,9 @@ import './styles.css';
 import {mountPartRequests} from './part-request.js';
 import {matchesSearch,publishedOffers} from './catalog-search.js';
 
+const ownerPath='/owner';
+const isOwnerPage=location.pathname.replace(/\/$/,'')===ownerPath;
+
 const cfg=import.meta.env;
 let currentLanguage=getLanguage();
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
@@ -77,10 +80,17 @@ document.addEventListener('input',ev=>{if(ev.target.closest?.('#offeradd'))saveO
 document.addEventListener('change',ev=>{if(ev.target.closest?.('#offeradd'))saveOfferDraft()});
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveOfferDraft()});
 window.addEventListener('pagehide',saveOfferDraft);
+const languageSelector=()=>`<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label>`;
 function layout(inner){
  saveOfferDraft();
- const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?'<a class="ownerlink" href="#owner">Panel Owner</a>':''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label></nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/used-auto-parts.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
+ if(isOwnerPage){
+  app.innerHTML=`<header class="header"><a href="/#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="/#home">Explorar piezas</a>${S.session?'<button data-act="logout">Salir</button>':''}${languageSelector()}</nav></header><main>${inner}</main>`;
+  localize(app,currentLanguage);
+  restoreOfferDraft();
+  return;
+ }
+ const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?`<a class="ownerlink" href="${ownerPath}">Panel Owner</a>`:''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/used-auto-parts.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
@@ -136,8 +146,11 @@ function part(id){
  const on=!!S.site.settings?.payments_enabled;
  layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Descripción del vendedor</h2><p>${esc(x.description)}</p></article>${commercialOffers('part')}<h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
 }
+function signInForm(){
+ return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form>`;
+}
 function login(){
- layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password. Google sign-in may be added later.</p><div class="two"><form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form><form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
+ layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password. Google sign-in may be added later.</p><div class="two">${signInForm()}<form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
 }
 function feedback(){
  if(!S.session){layout(authWall);return}
@@ -187,7 +200,11 @@ function referrals(){
 }
 const actionButton=(type,id,status,label)=>`<button data-act="${type}" data-id="${esc(id)}" data-status="${esc(status)}">${esc(label)}</button>`;
 function owner(){
- if(!S.me?.is_owner){layout(authWall);return}
+ if(!S.me?.is_owner){
+  const restriction=currentLanguage==='es'?'Solo la cuenta del propietario puede acceder a este panel.':'Only the owner account can access this dashboard.';
+  layout(`<section class="section"><h1>Panel Owner</h1><p>${restriction}</p>${S.session?'':signInForm()}</section>`);
+  return;
+ }
  const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
  const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p><p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div></article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
  const testState=S.checkoutTest||{},testRecord=testState.record;
@@ -261,19 +278,33 @@ function publicInfo(kind){
 }
 let version=0;
 async function route(){
- const current=++version,hash=(location.hash||'#home').slice(1),[p,id]=hash.split('/');
+ const current=++version,hash=(location.hash||'#home').slice(1);
+ const [marketPage,id]=hash.split('/');
+ if(!isOwnerPage&&marketPage==='owner'){location.replace(ownerPath);return}
+ const p=isOwnerPage?'owner':marketPage;
  layout('<section class="section"><h2>Cargando datos…</h2></section>');
  try{
   if(['orders','sell','return','review'].includes(p)&&S.session)S.mine=await api('mine');
   if(['home','catalog',''].includes(p))S.currentReviews=await api('reviews','GET',{scope:'website'});
   if(p==='part'&&id)S.currentReviews=await api('reviews','GET',{scope:'part',listing_id:id});
   if(p==='referrals'&&S.session)S.referrals=await api('referrals');
-  if(p==='owner'&&S.me?.is_owner){const [dashboard,test,quotes,supplier]=await Promise.all([api('dashboard'),api('checkout-test'),api('part-requests'),api('supplier-status')]);S.admin=dashboard;S.checkoutTest=test;S.partRequests=quotes.requests;S.supplier=supplier;}
+  if(p==='owner'&&S.me?.is_owner){
+   const [dashboard,test,quotes,supplier]=await Promise.all([api('dashboard'),api('checkout-test'),api('part-requests'),api('supplier-status')]);
+   if(version!==current)return;
+   S.admin=dashboard;
+   S.checkoutTest=test;
+   S.partRequests=quotes.requests;
+   S.supplier=supplier;
+  }
   if(version!==current)return;
   if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
- }catch(err){layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
+ }catch(err){if(version!==current)return;layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
-async function refreshIdentity(){S.me=S.session?await api('me'):null}
+async function refreshIdentity(){
+ const userId=S.session?.user?.id;
+ const identity=S.session?await api('me'):null;
+ if(S.session?.user?.id===userId)S.me=identity;
+}
 async function refreshCatalog(){S.site=await api('site')}
 document.addEventListener('click',async ev=>{
  const b=ev.target.closest('[data-act]');if(!b)return;
@@ -305,7 +336,7 @@ document.addEventListener('click',async ev=>{
   if(a==='sellercommission'){const found=S.admin?.sellers?.find(x=>x.user_id===id);if(!found)return;const amount=prompt('Enter the new commission percentage for this seller (0–30%). Changes apply only to new sales.',(found.commission_bps/100).toFixed(2));if(amount===null)return;if(!/^\d{1,2}(\.\d{1,2})?$/.test(amount)||Number(amount)>30)throw Error('Enter a valid percentage from 0 to 30 with up to two decimals.');await api('admin.commission','POST',{id,commission_bps:Math.round(Number(amount)*100)});toast('Seller commission updated for future orders.');await route();return}
   if(a==='withdraw'){if(!confirm('¿Retirar esta pieza del mercado? No se podrá comprar.'))return;await api('listing.withdraw','POST',{id});toast('Anuncio retirado');await route();return}
   if(a==='copyref'){await navigator.clipboard.writeText(refUrl());toast('Enlace de referidos copiado');return}
-  if(a==='logout'){clearOfferDraft();document.getElementById('offeradd')?.reset();await sb.auth.signOut();S.session=null;S.me=null;location.hash='#home';await route();return}
+  if(a==='logout'){clearOfferDraft();document.getElementById('offeradd')?.reset();await sb.auth.signOut();S.session=null;S.me=null;if(!isOwnerPage)location.hash='#home';await route();return}
   if(a==='connect'){const r=await api('seller.connect','POST',{});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='checkout'){if(!S.session){location.hash='#login';return}if(!confirm('Continuar al pago protegido por Stripe?'))return;const r=await api('checkout','POST',{listing_id:id});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type==='checkbox')elem.checked=Boolean(v);else if(elem&&elem.type!=='file')elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
@@ -350,7 +381,7 @@ document.addEventListener('submit',async ev=>{
   }
   if(f.id==='socialsettings'){const links={};for(const [k] of SOCIAL_NETWORKS)links[k]=String(v[k]||'').trim();await api('admin.socials','POST',{links});toast('Official social links saved.');await refreshCatalog()}
   if(f.id==='review'){await api('review.submit','POST',{subject:f.dataset.subject,order_id:f.dataset.id,...v,rating:Number(v.rating)});toast('Review submitted. It will appear after moderation.');location.hash=f.dataset.subject==='website'?'#home':'#orders'}
-  if(f.id==='signin'){const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;location.hash='#home'}
+  if(f.id==='signin'){const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;if(isOwnerPage)await refreshIdentity();else location.hash='#home'}
   if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash='#home'}
   if(f.id==='seller'){const r=await api('seller.apply','POST',v);await refreshIdentity();toast(r.owner_store?'Your own store is ready. Upload original photos of your parts.':'Application submitted for review.')}
   if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('Solicitud enviada a revisión');location.hash='#orders'}
@@ -382,9 +413,22 @@ window.addEventListener('hashchange',route);
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
-  await Promise.all([refreshCatalog(),refreshIdentity()]);
+  await Promise.all([isOwnerPage?null:refreshCatalog(),refreshIdentity()]);
   await claimRef();
-  sb.auth.onAuthStateChange((_event,session)=>{const previousUser=S.session?.user?.id;S.session=session;if(previousUser===session?.user?.id)return;setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0)});
+  sb.auth.onAuthStateChange((_event,session)=>{
+   const previousUser=S.session?.user?.id;
+   S.session=session;
+   if(previousUser===session?.user?.id)return;
+   if(isOwnerPage){
+    S.me=null;
+    S.admin=null;
+    S.checkoutTest=null;
+    S.partRequests=null;
+    S.supplier=null;
+    void route();
+   }
+   setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0);
+  });
   await route();
  }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 })();
