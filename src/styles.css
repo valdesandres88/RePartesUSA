@@ -89,6 +89,11 @@
 }
 .search-hints button:hover{color:#102520;background:#e4f5e8}
 .search-hero button:focus-visible{outline:2px solid #a5efc8;outline-offset:3px}
+.header .logo-mark{
+ display:inline-grid;place-items:center;vertical-align:middle;
+ width:1.6em;height:1.6em;margin-right:.25em;border-radius:.4em;
+ background:#133a2b;color:#bfffa2;font-size:.8em;letter-spacing:0;
+}
 .shop-catalog{padding-top:30px;scroll-margin-top:68px}
 #partner-results h2{margin-bottom:8px}
 #partner-results>p{max-width:68ch;margin:0 0 18px}
