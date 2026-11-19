@@ -1,5 +1,10 @@
 // Match published records only. A text match is never a vehicle fitment guarantee.
 export const normalizeSearch=value=>String(value??'').normalize('NFKD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]+/g,' ').trim();
+export const normalizePartNumber=value=>normalizeSearch(value).replaceAll(' ','');
+export function matchesPartNumber(record,query){
+ const number=normalizePartNumber(query);
+ return number!==''&&number===normalizePartNumber(record.part_number);
+}
 export function matchesSearch(record,query){
  const tokens=normalizeSearch(query).split(' ').filter(Boolean);
  const text=normalizeSearch([record.title,record.description,record.make,record.model,record.part_number,record.shop_name].join(' '));

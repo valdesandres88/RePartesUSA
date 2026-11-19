@@ -4,7 +4,7 @@ import {reviewList,reviewForm,stars} from './reviews-ui.js';
 import {LANGUAGES,getLanguage,setLanguage,localize} from './i18n.js';
 import './styles.css';
 import {mountPartRequests} from './part-request.js';
-import {matchesSearch,publishedOffers} from './catalog-search.js';
+import {matchesPartNumber,matchesSearch,normalizePartNumber,publishedOffers} from './catalog-search.js';
 
 const ownerPath='/owner';
 const isOwnerPage=location.pathname.replace(/\/$/,'')===ownerPath;
@@ -13,7 +13,7 @@ const marketplaceRoute=()=>(location.hash||'#home').slice(1).split('/');
 const cfg=import.meta.env;
 let currentLanguage=getLanguage();
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
-const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:'',currentReviews:null},app=document.getElementById('app');
+const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:'',searchByNumber:false,currentReviews:null},app=document.getElementById('app');
 let refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
 if(/^[A-Z0-9]{12}$/.test(refQuery)){try{localStorage.setItem('repartes_referral',refQuery)}catch{}}
 const pendingRef=()=>{try{return localStorage.getItem('repartes_referral')||refQuery}catch{return refQuery}};
@@ -113,8 +113,8 @@ let partnerSearchTimer,partnerSearchController;
 function catalogMatches(){
  const settings=S.site?.settings||{};
  return {
-  listings:(S.site?.listings||[]).filter(x=>matchesSearch(x,S.q)),
-  offers:publishedOffers(settings).filter(x=>matchesSearch(x,S.q))
+  listings:(S.site?.listings||[]).filter(x=>S.searchByNumber?matchesPartNumber(x,S.q):matchesSearch(x,S.q)),
+  offers:S.searchByNumber?[]:publishedOffers(settings).filter(x=>matchesSearch(x,S.q))
  };
 }
 function noCatalogMatches(){
@@ -123,10 +123,11 @@ function noCatalogMatches(){
 }
 const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part data-request-from-search>Request a part</button></div>';
 function catalogResults(){
+ if(S.searchByNumber&&!normalizePartNumber(S.q))return '';
  if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
  const {listings,offers}=catalogMatches();
  if(!listings.length&&!offers.length)return '';
- const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p><strong>${money(x.price_cents)}</strong></div></a>`;
+ const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p>${S.searchByNumber?`<p data-no-translate>${esc(x.part_number)}</p>`:''}<strong>${money(x.price_cents)}</strong></div></a>`;
  const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
  return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
 }
@@ -144,13 +145,14 @@ async function updatePartnerResults(){
  if(!area)return;
 
  const q=S.q.trim();
- const featured=q.length===0;
- if(!featured&&q.length<2){area.innerHTML='';return;}
- const heading=featured?'Featured parts from eBay':'eBay inventory · Affiliate links';
+ const byNumber=S.searchByNumber;
+ const featured=!byNumber&&q.length===0;
+ if(!featured&&(q.length<2||(byNumber&&!normalizePartNumber(q)))){area.innerHTML='';return;}
+ const heading=featured?'Featured parts from eBay':byNumber?'Part-number search on eBay · Affiliate links':'eBay inventory · Affiliate links';
  setPartnerResults(area,`<h2>${heading}</h2><p>${featured?'Loading featured parts…':'Searching eBay…'}</p>`);
  const controller=new AbortController();
  partnerSearchController=controller;
- const isCurrent=()=>!controller.signal.aborted&&S.q.trim()===q&&area.isConnected;
+ const isCurrent=()=>!controller.signal.aborted&&S.q.trim()===q&&S.searchByNumber===byNumber&&area.isConnected;
  const params=new URLSearchParams(featured?{featured:'1'}:{q});
 
  try{
@@ -173,7 +175,7 @@ async function updatePartnerResults(){
     <a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay</a>
    </div>
   </article>`).join('');
-  setPartnerResults(area,`<h2>${heading}</h2><p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid ebay-grid">${cards}</div>`);
+  setPartnerResults(area,`<h2>${heading}</h2>${byNumber?'<p>Confirm the part number in the eBay listing before buying.</p>':''}<p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid ebay-grid">${cards}</div>`);
  }catch{
   if(!isCurrent())return;
   const message=featured?'Featured eBay parts are temporarily unavailable.':'eBay search is temporarily unavailable. Try again shortly.';
@@ -191,12 +193,13 @@ function home(){
    <div class="search-hero-inner">
     <h1>${esc(st.hero_title||'Keep your vehicle moving.')}</h1>
     <form id="part-search" role="search" class="hero-search">
-     <label for="search">What part are you looking for?
-      <input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="Part, vehicle or part number" value="${esc(S.q)}" aria-controls="catalog-results partner-results">
+     <label for="search"><span id="search-label">${S.searchByNumber?'Enter the full part number':'What part are you looking for?'}</span>
+      <input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="${S.searchByNumber?'Example: AB-1234':'Part, vehicle or part number'}" value="${esc(S.q)}" aria-controls="catalog-results partner-results">
      </label>
      <button class="primary" type="submit">Find my part</button>
     </form>
     <div class="search-hints">
+     <button type="button" id="part-number-mode" aria-pressed="${S.searchByNumber}">Search by OEM number</button>
      <button type="button" data-search-term="brake pads">Brake pads</button>
      <button type="button" data-search-term="alternator">Alternator</button>
      <button type="button" data-search-term="turbo Duramax">Turbo Duramax</button>
@@ -450,9 +453,27 @@ document.addEventListener('input',ev=>{if(ev.target.id==='search'){
  const length=S.q.trim().length;
  if(length===0||length>=2)partnerSearchTimer=setTimeout(updatePartnerResults,650);
 }});
+function setPartNumberMode(byNumber){
+ S.searchByNumber=byNumber;
+ const mode=document.getElementById('part-number-mode');
+ const form=document.getElementById('part-search');
+ mode.setAttribute('aria-pressed',String(byNumber));
+ form.querySelector('#search-label').textContent=byNumber?'Enter the full part number':'What part are you looking for?';
+ form.elements.q.placeholder=byNumber?'Example: AB-1234':'Part, vehicle or part number';
+ localize(form,currentLanguage);
+}
 document.addEventListener('click',ev=>{
+ const mode=ev.target.closest('#part-number-mode');
+ if(mode){
+  setPartNumberMode(!S.searchByNumber);
+  updateCatalogResults();
+  updatePartnerResults();
+  document.getElementById('search').focus();
+  return;
+ }
  const button=ev.target.closest('[data-search-term]');if(!button)return;
- S.q=button.dataset.searchTerm;const input=document.getElementById('search');if(input)input.value=S.q;
+ setPartNumberMode(false);
+ S.q=button.dataset.searchTerm;document.getElementById('search').value=S.q;
  updateCatalogResults();updatePartnerResults();document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});
 });
 document.addEventListener('submit',ev=>{if(ev.target.id!=='part-search')return;ev.preventDefault();S.q=document.getElementById('search').value;updateCatalogResults();updatePartnerResults();document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});});
