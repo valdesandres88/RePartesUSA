@@ -3,6 +3,7 @@ import {checkoutCredentialsCompatible} from './payment-guards.mjs';
 import {randomBytes} from 'node:crypto';
 import {handleCheckoutTest} from '../lib/checkout-tests.mjs';
 import {submitPartRequest} from '../lib/part-requests.mjs';
+import {prepareQuotePhotos,readPartQuotes,savePartQuote,withdrawPartQuote} from '../lib/part-quotes.mjs';
 import {supplierConfiguration} from '../lib/partner-inventory.mjs';
 import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter,genuineSellerPhoto} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
@@ -15,7 +16,8 @@ export async function handler(event){
  try{
   if(!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.SUPABASE_URL)fail('Falta configuración privada de Supabase.',503);
   const d=db(),method=event.httpMethod,action=new URLSearchParams(event.queryStringParameters||{}).get('action')||'site';
-  let body={};if(method==='POST'){checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
+  let body={};if(method==='POST'){if(action!=='quote.compare')checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
+  if(method==='POST'&&action==='quote.compare')return respond(await readPartQuotes(body?.token,d));
   if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));
   if(method==='GET'&&action==='supplier-status'){
    await auth(event,d,{owner:true});
@@ -23,7 +25,7 @@ export async function handler(event){
   }
   if(method==='GET'&&action==='part-requests'){
    await auth(event,d,{owner:true});
-   return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,zip_code,status,created_at').order('created_at',{ascending:false}).limit(100))});
+   return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,zip_code,status,created_at,quote_token,part_request_quotes(id,seller_name,total_cents,active)').order('created_at',{ascending:false}).limit(100))});
   }
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
@@ -288,6 +290,9 @@ export async function handler(event){
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
    if(action==='admin.checkout-test.start'||action==='admin.checkout-test.refund')return respond(await handleCheckoutTest(action.split('.').at(-1),{database:d,client:s(),user:{...u,is_owner:true},site:SITE(),mode:checkoutMode(),key:process.env.STRIPE_SECRET_KEY}));
+   if(action==='admin.quote.photos')return respond({uploads:await prepareQuotePhotos(body,d)});
+   if(action==='admin.quote.add')return respond(await savePartQuote(body,d));
+   if(action==='admin.quote.withdraw')return respond(await withdrawPartQuote(body,d));
    if(action==='admin.quote.status'){
     const status=exactStatus(body.status,['new','reviewing','closed']);
     unwrap(await d.from('part_requests').update({status}).eq('id',str(body.id,40)).select('id').single());

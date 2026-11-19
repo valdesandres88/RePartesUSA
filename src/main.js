@@ -4,10 +4,13 @@ import {reviewList,reviewForm,stars} from './reviews-ui.js';
 import {LANGUAGES,getLanguage,setLanguage,localize} from './i18n.js';
 import './styles.css';
 import {mountPartRequests} from './part-request.js';
+import {ownerQuoteTools,quoteComparison,quotePath,renderQuotePage,submitOwnerQuote} from './part-quotes.js';
 import {matchesPartNumber,matchesSearch,normalizePartNumber,publishedOffers} from './catalog-search.js';
 
 const ownerPath='/owner';
-const isOwnerPage=location.pathname.replace(/\/$/,'')===ownerPath;
+const pagePath=location.pathname.replace(/\/$/,'');
+const isOwnerPage=pagePath===ownerPath;
+const isQuotePage=pagePath===quotePath;
 const marketplaceRoute=()=>(location.hash||'#home').slice(1).split('/');
 
 const cfg=import.meta.env;
@@ -290,7 +293,7 @@ function owner(){
   return;
  }
  const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
- const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p>${q.zip_code?`<p><span>ZIP code</span> ${esc(q.zip_code)}</p>`:''}<p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div></article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
+ const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p>${q.zip_code?`<p><span>ZIP code</span> ${esc(q.zip_code)}</p>`:''}<p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div>${ownerQuoteTools(q,esc)}</article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
  const testState=S.checkoutTest||{},testRecord=testState.record;
  const testPassed=Boolean(testRecord?.paid_webhook_at&&testRecord?.refund_webhook_at&&testRecord?.status==='refunded');
  const testPanel=`<section class="panel"><h2>Payment launch checklist</h2><p>Server environment: <strong>${esc(testState.mode||'disabled')}</strong>. Customer payments: <strong>${settings.payments_enabled?'enabled':'off'}</strong>.</p><h3>Private purchase and refund test</h3><p>This uses $10 in Stripe test funds. No real card or physical inventory is needed. Test records are separate from marketplace sales.</p><p>Status: <strong>${testPassed?'Payment and refund webhooks verified':esc(testRecord?.status||'Not started')}</strong></p><p>Payment webhook: ${testRecord?.paid_webhook_at?'received':'pending'} · Refund webhook: ${testRecord?.refund_webhook_at?'received':'pending'}</p>${testState.mode==='test'&&testState.configured?'<button class="primary" data-act="checkoutteststart">Open private test checkout</button> '+(testRecord?.paid_webhook_at&&!testRecord.refund_webhook_at?'<button data-act="checkouttestrefund">Refund test payment</button> ':''):'<p>Test checkout requires CHECKOUT_MODE=test and a server-side test key.</p>'}<button data-act="retry">Refresh test results</button><h3>Real inventory</h3><p>Only publish parts that a seller actually has, using original photos and accurate compatibility, condition and price.</p><a href="/#sell">Submit a real part</a></section>`;
@@ -363,6 +366,17 @@ function publicInfo(kind){
 let version=0;
 async function route(){
  const current=++version;
+ if(isQuotePage){
+  const render=content=>renderQuotePage(app,content,currentLanguage,languageSelector);
+  render('<h1>Loading quotes…</h1>');
+  try{
+   const result=await api('quote.compare','POST',{token:location.hash.slice(1)});
+   if(version===current)render(quoteComparison(result,esc));
+  }catch{
+   if(version===current)render('<h1>This quote link is unavailable.</h1><p>Check the link and try again.</p><button data-act="retry">Reintentar</button>');
+  }
+  return;
+ }
  const [marketPage,id]=marketplaceRoute();
  if(!isOwnerPage&&marketPage==='owner'){location.replace(ownerPath);return}
  const p=isOwnerPage?'owner':marketPage;
@@ -405,6 +419,25 @@ document.addEventListener('click',async ev=>{
  b.disabled=true;
  try{
   if(a==='retry'){if(b.dataset.reload!==undefined)location.reload();else await route();return}
+  if(a==='quote-copy'){
+   const token=S.partRequests?.find(request=>request.id===id)?.quote_token;
+   if(!token)return;
+   const url=location.origin+quotePath+'#'+token;
+   try{
+    await navigator.clipboard.writeText(url);
+    toast(currentLanguage==='es'?'Enlace privado copiado.':'Private quote link copied.');
+   }catch{
+    window.prompt(currentLanguage==='es'?'Copia el enlace privado.':'Copy the private quote link.',url);
+   }
+   return;
+  }
+  if(a==='quote-withdraw'){
+   const question=currentLanguage==='es'?'¿Retirar esta cotización de la página del comprador?':'Withdraw this quote from the buyer page?';
+   if(!confirm(question))return;
+   await api('admin.quote.withdraw','POST',{id,request_id:status});
+   await route();
+   return;
+  }
   if(a==='quotestatus'){await api('admin.quote.status','POST',{id,status});toast('Part request updated.');await route();return}
   if(a==='checkoutteststart'){const r=await api('admin.checkout-test.start','POST',{});const url=new URL(r.url);if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')throw Error('Unexpected checkout address');location.href=url.href;return}
   if(a==='checkouttestrefund'){await api('admin.checkout-test.refund','POST',{});toast('Test refund requested. Refresh to confirm its webhook.');await route();return}
@@ -478,6 +511,21 @@ document.addEventListener('click',ev=>{
 });
 document.addEventListener('submit',ev=>{if(ev.target.id!=='part-search')return;ev.preventDefault();S.q=document.getElementById('search').value;updateCatalogResults();updatePartnerResults();document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});});
 document.addEventListener('submit',async ev=>{
+ const form=ev.target;
+ if(!form.matches('[data-quote-form]'))return;
+ ev.preventDefault();
+ const button=form.querySelector('[type="submit"]');
+ if(button.disabled)return;
+ const status=form.querySelector('[data-quote-status]');
+ button.disabled=true;
+ status.textContent=currentLanguage==='es'?'Guardando cotización…':'Saving quote…';
+ try{
+  await submitOwnerQuote(form,api,sb.storage);
+  if(form.isConnected)await route();
+ }catch(error){status.textContent=error.message;}
+ finally{button.disabled=false;}
+});
+document.addEventListener('submit',async ev=>{
  const f=ev.target;if(!['signin','signup','seller','listing','settings','socialsettings','adssettings','offeradd','returnrequest','review'].includes(f.id))return;ev.preventDefault();
  const v=Object.fromEntries(new FormData(f).entries()),button=f.querySelector('button');if(button)button.disabled=true;
  try{
@@ -519,9 +567,10 @@ document.addEventListener('submit',async ev=>{
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
 });
 document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
-if(!isOwnerPage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q});
+if(!isOwnerPage&&!isQuotePage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q});
 window.addEventListener('hashchange',route);
 (async()=>{
+ if(isQuotePage){await route();return;}
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
