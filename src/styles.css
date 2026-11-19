@@ -199,3 +199,14 @@
 .seller-invite{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding-block:20px;border-bottom:1px solid var(--line)}
 .seller-invite h2,.seller-invite p{margin:0}
 .seller-invite p{margin-top:5px;max-width:65ch}
+
+.amazon-parts-grid{grid-template-columns:repeat(auto-fit,minmax(min(100%,290px),1fr))}
+.amazon-part-card{display:flex;flex-direction:column;align-items:flex-start;border-radius:8px;min-height:210px}
+.amazon-part-card h2{font-size:1.15rem;margin:8px 0}
+.amazon-part-card .amazon-stock{margin-top:auto;font-size:.9rem}
+.amazon-vehicle{display:flex;flex-wrap:wrap;align-items:center;gap:10px;margin:20px 0}
+.amazon-vehicle label{flex-basis:100%}
+.amazon-vehicle input{flex:1 1 260px;min-width:0}
+.amazon-pagination{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:24px}
+.amazon-pagination a,.amazon-pagination span{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:8px;text-decoration:none}
+.amazon-pagination [aria-current="page"]{background:#102520;color:#fff;border-color:#102520}

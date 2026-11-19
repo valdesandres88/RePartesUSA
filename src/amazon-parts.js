@@ -205,14 +205,37 @@ const partsByYear = {
   ]
 };
 
-export function amazonPartsPage({layout,esc}){
- const sections=Object.entries(partsByYear).map(([year,parts])=>{
-  const title=year==='2026'?'2026 maintenance and replacement priorities':'2027 parts to watch';
-  const cards=parts.map(([part,description])=>{
-   const url='https://www.amazon.com/s?k='+encodeURIComponent('automotive '+part)+'&tag=andresvalde06-20';
-   return `<article class="offer-card"><h3>${esc(part)}</h3><p>${esc(description)}</p><a class="secondary" href="${esc(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">Compare prices on Amazon ↗</a></article>`;
-  }).join('');
-  return `<section class="section offers"><h2>${title}</h2><div class="offer-grid">${cards}</div></section>`;
+const pageSize=10;
+const parts=Object.entries(partsByYear).flatMap(([year,entries])=>entries.map(([name,description])=>({year,name,description})));
+const pageCount=Math.ceil(parts.length/pageSize);
+
+function pageUrl(page,vehicle){
+ const query=vehicle?'/'+encodeURIComponent(vehicle):'';
+ return '#amazon-parts'+(page===1&&!vehicle?'':'/'+page+query);
+}
+
+export function amazonPartsPage({layout,esc,pageId,vehicleId}){
+ const requested=Number(pageId);
+ const page=Number.isInteger(requested)&&requested>=1&&requested<=pageCount?requested:1;
+ let vehicle='';
+ try{vehicle=decodeURIComponent(vehicleId||'').trim().slice(0,100)}catch{}
+ const start=(page-1)*pageSize;
+ const cards=parts.slice(start,start+pageSize).map(({year,name,description})=>{
+  const url='https://www.amazon.com/s?k='+encodeURIComponent(['automotive',name,vehicle].filter(Boolean).join(' '))+'&tag=andresvalde06-20';
+  return `<article class="offer-card amazon-part-card"><div class="offer-kind">${year}</div><h2>${esc(name)}</h2><p>${esc(description)}</p><p class="amazon-stock">Stock quantity: Check on Amazon</p><a class="secondary" href="${esc(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">Check price and availability ↗</a></article>`;
  }).join('');
- layout(`<section class="section"><h1>Amazon Auto Parts Guide</h1><p>Explore 50 common maintenance and repair categories. The 2027 list is a planning guide. Check your year, make, model and engine before ordering.</p><p>As an Amazon Associate I earn from qualifying purchases.</p></section>${sections}`);
+ const numbers=Array.from({length:pageCount},(_,index)=>{
+  const number=index+1;
+  return number===page?`<span aria-current="page">${number}</span>`:`<a href="${pageUrl(number,vehicle)}" aria-label="Page ${number}">${number}</a>`;
+ }).join('');
+ const back=page>1?`<a class="secondary" href="${pageUrl(page-1,vehicle)}">← Back</a>`:'';
+ layout(`<section class="section amazon-parts"><h1>Amazon Auto Parts Guide</h1>${back}<p>Explore maintenance and repair categories for 2026 and 2027. Confirm fitment and stock for the specific listing before ordering.</p><p>As an Amazon Associate I earn from qualifying purchases.</p>
+ <form id="amazon-vehicle" class="amazon-vehicle"><label for="amazon-vehicle-query">Car or truck (year, make, model and engine)</label><input id="amazon-vehicle-query" name="vehicle" type="search" maxlength="100" value="${esc(vehicle)}" placeholder="Example: 2011 Ram 1500 5.7L"><button class="primary" type="submit">Apply vehicle</button></form>
+ <div class="offer-grid amazon-parts-grid">${cards}</div><nav class="amazon-pagination" aria-label="Amazon auto parts pages">${numbers}</nav></section>`,{showBack:false});
+ const form=document.getElementById('amazon-vehicle');
+ form?.addEventListener('submit',event=>{
+  event.preventDefault();
+  const selected=new FormData(form).get('vehicle').trim();
+  window.location.hash=pageUrl(page,selected);
+ });
 }
