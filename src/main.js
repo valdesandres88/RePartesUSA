@@ -89,7 +89,7 @@ function layout(inner){
   restoreOfferDraft();
   return;
  }
- const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?`<a class="ownerlink" href="${ownerPath}">Panel Owner</a>`:''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
+ const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
  app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
@@ -228,8 +228,12 @@ function referrals(){
 const actionButton=(type,id,status,label)=>`<button data-act="${type}" data-id="${esc(id)}" data-status="${esc(status)}">${esc(label)}</button>`;
 function owner(){
  if(!S.me?.is_owner){
-  const restriction=currentLanguage==='es'?'Solo la cuenta del propietario puede acceder a este panel.':'Only the owner account can access this dashboard.';
-  layout(`<section class="section"><h1>Panel Owner</h1><p>${restriction}</p>${S.session?'':signInForm()}</section>`);
+  const spanish=currentLanguage==='es';
+  if(S.session){
+   layout(`<section class="section"><h1>${spanish?'Acceso restringido':'Access restricted'}</h1><p>${spanish?'Tu cuenta no tiene acceso a esta página.':'Your account does not have access to this page.'}</p><a class="primary" href="/#home">Explorar piezas</a></section>`);
+   return;
+  }
+  layout(`<section class="section"><h1>${spanish?'Acceso privado':'Private sign-in'}</h1>${signInForm()}</section>`);
   return;
  }
  const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
@@ -455,8 +459,8 @@ window.addEventListener('hashchange',route);
    const previousUser=S.session?.user?.id;
    S.session=session;
    if(previousUser===session?.user?.id)return;
+   S.me=null;
    if(isOwnerPage){
-    S.me=null;
     S.admin=null;
     S.checkoutTest=null;
     S.partRequests=null;
