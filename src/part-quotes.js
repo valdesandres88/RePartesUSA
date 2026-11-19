@@ -88,6 +88,6 @@ export function quoteComparison(result,esc){
 }
 
 export function renderQuotePage(app,content,language,languageSelector){
- app.innerHTML=`<header class="header"><a href="/" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a>${languageSelector()}</header><main class="section quote-page">${content}</main>`;
+ app.innerHTML=`<header class="header"><a href="/" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a>${languageSelector()}</header><main class="section quote-page">${content}</main><footer><p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></p></footer>`;
  localize(app,language);
 }

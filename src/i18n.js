@@ -6,6 +6,7 @@ export const defaultLanguage='en';
 export const getLanguage=()=>{try{return localStorage.getItem('repartes_lang')==='es'?'es':'en';}catch{return 'en';}};
 export const setLanguage=lang=>{if(!LANGUAGES.some(([code])=>code===lang))return;try{localStorage.setItem('repartes_lang',lang);}catch{}};
 const esToEn={
+'© 2026 RePartes USA. Todos los derechos reservados.':'© 2026 RePartes USA. All rights reserved.',
 'Marketplace de autopartes en Estados Unidos.':'Auto parts marketplace in the United States.',
 'Las compras de anuncios de eBay se completan en eBay.':'Purchases from eBay listings are completed on eBay.',
 'Publicidad y afiliados':'Advertising & affiliates',
