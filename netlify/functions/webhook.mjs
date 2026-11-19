@@ -13,6 +13,20 @@ export async function handler(event){
   if(!stripeModeMatches(process.env.CHECKOUT_MODE,incoming.livemode))return respond({error:'Stripe environment mismatch'},400);
   const d=db(),obj=incoming.data.object;
   if(incoming.livemode===false&&await processCheckoutTestEvent(incoming,d))return respond({received:true,test:true});
+  if(incoming.livemode && ['charge.refunded','application_fee.refunded','charge.dispute.created','charge.dispute.closed'].includes(incoming.type)){
+   let intent=obj.payment_intent,kind='refund',fee=0,full=false,dispute=null;
+   if(incoming.type==='charge.refunded'){
+    full=obj.amount_refunded===obj.amount;
+    if(!full && obj.application_fee)fee=(await stripe().applicationFees.retrieve(obj.application_fee)).amount_refunded;
+   }else if(incoming.type==='application_fee.refunded'){
+    intent=(await stripe().charges.retrieve(obj.charge)).payment_intent;
+    fee=obj.amount_refunded;
+   }else{
+    dispute=obj.id;
+    kind=incoming.type==='charge.dispute.created'?'dispute_open':(obj.status==='won'?'dispute_won':'dispute_lost');
+   }
+   if(intent)unwrap(await d.from('referral_payment_events').upsert({event_id:incoming.id,intent,kind,refunded_fee:fee,full_refund:full,dispute_id:dispute},{onConflict:'event_id',ignoreDuplicates:true}));
+  }
   if(['checkout.session.completed','checkout.session.async_payment_succeeded'].includes(incoming.type)){
    if(obj.payment_status!=='paid')return respond({received:true});
    const id=obj.metadata?.order_id||obj.client_reference_id;

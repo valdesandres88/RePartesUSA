@@ -83,11 +83,11 @@ export async function handler(event){
     record=unwrap(await d.from('referral_codes').select('code').eq('user_id',u.id).maybeSingle());
     if(!record)fail('No fue posible crear el enlace. Inténtalo de nuevo.',503);
    }
-   const invites=unwrap(await d.from('referrals').select('referred_id,created_at').eq('referrer_id',u.id).order('created_at',{ascending:false}).limit(500));
-   const ids=invites.map(x=>x.referred_id);
-   const paid=ids.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',ids).in('status',['paid','shipped'])):[];
-   const qualified=new Set(paid.map(x=>x.buyer_id));
-   return respond({code:record.code,invites:invites.length,qualified:qualified.size,recent:invites.slice(0,20).map(x=>({date:x.created_at,qualified:qualified.has(x.referred_id)})),rewards_enabled:false});
+   const [balance,recent]=await Promise.all([
+    d.rpc('referral_balance',{p_referrer:u.id}),
+    d.from('referral_earnings').select('created_at,state,reward_cents,available_on').eq('referrer_id',u.id).order('created_at',{ascending:false}).limit(20)
+   ]);
+   return respond({code:record.code,...unwrap(balance),recent:unwrap(recent),rewards_enabled:true});
   }
   if(method==='GET'&&action==='mine'){
    const u=await auth(event,d),[listings,buying,selling]=await Promise.all([
@@ -126,13 +126,11 @@ export async function handler(event){
    ]);
    const [returns,referrals,reviews]=await Promise.all([
     d.from('return_requests').select('id,order_id,buyer_id,reason,details,evidence_url,status,admin_note,return_tracking,requested_at,authorized_at,received_at').order('requested_at',{ascending:false}).limit(200),
-    d.from('referrals').select('referred_id,referrer_id,code,created_at').order('created_at',{ascending:false}).limit(200),
+    d.from('referral_earnings').select('referred_id,referrer_id,code,created_at,qualified,reward_cents,state,available_on').order('created_at',{ascending:false}).limit(200),
     d.from('market_reviews').select('id,reviewer_id,subject,listing_id,order_id,rating,title,comment,status,created_at').order('created_at',{ascending:false}).limit(150)
    ]);
-   const returnRows=unwrap(returns),referralRows=unwrap(referrals),referred=referralRows.map(x=>x.referred_id);
-   const purchases=referred.length?unwrap(await d.from('orders').select('buyer_id').in('buyer_id',referred).in('status',['paid','shipped'])):[];
-   const qualified=new Set(purchases.map(x=>x.buyer_id));
-   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,commission_bps:isPlatformSeller(s.user_id)?0:s.commission_bps,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows.map(x=>({...x,qualified:qualified.has(x.referred_id)})),referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>qualified.has(x.referred_id)).length,rewards_enabled:false},reviews:unwrap(reviews)});
+   const returnRows=unwrap(returns),referralRows=unwrap(referrals);
+   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,commission_bps:isPlatformSeller(s.user_id)?0:s.commission_bps,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows,referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>x.qualified).length,rewards_enabled:true},reviews:unwrap(reviews)});
 
   }
   if(method!=='POST')fail('Método no permitido.',405);
