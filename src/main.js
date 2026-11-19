@@ -8,6 +8,7 @@ import {matchesSearch,publishedOffers} from './catalog-search.js';
 
 const ownerPath='/owner';
 const isOwnerPage=location.pathname.replace(/\/$/,'')===ownerPath;
+const marketplaceRoute=()=>(location.hash||'#home').slice(1).split('/');
 
 const cfg=import.meta.env;
 let currentLanguage=getLanguage();
@@ -81,16 +82,17 @@ document.addEventListener('change',ev=>{if(ev.target.closest?.('#offeradd'))save
 document.addEventListener('visibilitychange',()=>{if(document.visibilityState==='hidden')saveOfferDraft()});
 window.addEventListener('pagehide',saveOfferDraft);
 const languageSelector=()=>`<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label>`;
-function layout(inner){
+const backButton=()=>`<button type="button" data-back-button aria-label="${currentLanguage==='es'?'Volver a la página anterior':'Go back to the previous page'}">${currentLanguage==='es'?'← Volver':'← Back'}</button>`;
+function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute()[0])}={}){
  saveOfferDraft();
  if(isOwnerPage){
-  app.innerHTML=`<header class="header"><a href="/#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="/#home">Explorar piezas</a>${S.session?'<button data-act="logout">Salir</button>':''}${languageSelector()}</nav></header><main>${inner}</main>`;
+  app.innerHTML=`<header class="header"><a href="/#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav>${backButton()}<a href="/#home">Explorar piezas</a>${S.session?'<button data-act="logout">Salir</button>':''}${languageSelector()}</nav></header><main>${inner}</main>`;
   localize(app,currentLanguage);
   restoreOfferDraft();
   return;
  }
  const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<header class="header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="${currentLanguage==='es'?'Volver a la página anterior':'Go back to the previous page'}">${currentLanguage==='es'?'← Volver':'← Back'}</button><button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
+ app.innerHTML=`<header class="header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation">${showBack?backButton():''}<button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
@@ -207,7 +209,7 @@ function home(){
    <p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p>
    <a class="secondary" href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Read the parts buying guide</a>
   </section>
-  <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`);
+  <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`,{showBack:false});
  void updatePartnerResults();
 }
 
@@ -354,8 +356,8 @@ function publicInfo(kind){
 }
 let version=0;
 async function route(){
- const current=++version,hash=(location.hash||'#home').slice(1);
- const [marketPage,id]=hash.split('/');
+ const current=++version;
+ const [marketPage,id]=marketplaceRoute();
  if(!isOwnerPage&&marketPage==='owner'){location.replace(ownerPath);return}
  const p=isOwnerPage?'owner':marketPage;
  layout('<section class="section"><h2>Cargando datos…</h2></section>');
