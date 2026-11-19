@@ -7,6 +7,7 @@ import {reviewList,reviewForm,stars} from './reviews-ui.js';
 import {LANGUAGES,getLanguage,setLanguage,localize} from './i18n.js';
 import './styles.css';
 import {mountOwnerAnalytics} from './owner-analytics.js';
+import {partToolsCard,sellerEvidenceFields,withSellerEvidence,loadSellerEvidence,sellerHistory,donorVehicles,partDetailTools,mountPartDetailTools,ownerAlertMatches} from './part-tools.js';
 import {mountPartRequests} from './part-request.js';
 import {ownerQuoteTools,quoteComparison,quotePath,renderQuotePage,submitOwnerQuote} from './part-quotes.js';
 import {matchesPartNumber,matchesSearch,normalizePartNumber,publishedOffers} from './catalog-search.js';
@@ -155,7 +156,7 @@ function noCatalogMatches(){
 }
 let openLocalMap;
 const mapLink='<button type="button" class="secondary" data-local-map="search">Search nearby stores</button>';
-const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part data-request-from-search>Request a part</button>'+mapLink+'</div>';
+const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Leave an email so we can contact you if we find a match.</p><button class="primary" type="button" data-request-part data-request-alert data-request-from-search>Save a part alert</button>'+mapLink+'</div>';
 function catalogResults(){
  if(S.searchByNumber&&!normalizePartNumber(S.q))return '';
  if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
@@ -163,7 +164,7 @@ function catalogResults(){
  if(!listings.length&&!offers.length)return '';
  const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p>${S.searchByNumber?`<p data-no-translate>${esc(x.part_number)}</p>`:''}<strong>${money(x.price_cents)}</strong></div></a>`;
  const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
- return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
+ return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${S.searchByNumber?donorVehicles(listings,S.q,esc):''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
 }
 function updateCatalogResults(){
  const area=document.getElementById('catalog-results');if(area){area.innerHTML=catalogResults();localize(area,currentLanguage);}
@@ -260,6 +261,7 @@ function home(){
   </section>
   ${localMapMarkup(currentLanguage==='es',commercialOffers('map'))}
   <aside class="section seller-invite"><div><h2>Amazon Auto Parts Guide</h2><p>Explore 50 maintenance and repair categories for 2026 and 2027.</p></div><a class="primary" href="#amazon-parts">Browse Amazon Auto Parts</a></aside>
+  ${partToolsCard()}
   <section class="section buyer-section">
    <h2>Auto parts buying guide</h2>
    <p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p>
@@ -267,7 +269,7 @@ function home(){
   </section>
   <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`,{showBack:false});
  openLocalMap=mountLocalMap(document.getElementById('local-map'),currentLanguage==='es',()=>S.q);
- if(marketplaceRoute()[1]==='map')openLocalMap(false);
+ if(marketplaceRoute()[1]==='map')openLocalMap('browse');
  void updatePartnerResults();
 }
 
@@ -276,7 +278,8 @@ function part(id){
  if(!S.site){layout('<section class="section empty"><p>Seller inventory is temporarily unavailable.</p><button data-act="retry">Reintentar</button></section>');return}
  if(!x){layout('<section class="section empty">Pieza no disponible. <a href="#home">Volver</a></section>');return}
  const on=!!S.site.settings?.payments_enabled;
- layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Descripción del vendedor</h2><p>${esc(x.description)}</p></article>${commercialOffers('part')}<h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
+ layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Seller description</h2>${sellerHistory(x.description||'',esc)}</article>${partDetailTools(x,esc)}${donorVehicles(S.site.listings,x.part_number,esc)}${commercialOffers('part')}<h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
+ mountPartDetailTools(app);
 }
 function signInForm(){
  return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button><p><a href="/#login/forgot">Forgot password?</a></p></form>`;
@@ -320,7 +323,7 @@ function sell(){
  if(!S.session){login();return}
  const seller=S.me?.seller,m=S.mine||{listings:[],sales:[]};
  const apply=`<form id="seller" class="panel"><h2>${S.me?.is_owner?'Create my own store':'Solicitar cuenta de vendedor'}</h2>${S.me?.is_owner?'<p>Your own sales settle through the main Stripe account. No extra Express account or internal commission.</p>':''}${field('shop_name','Nombre de la tienda',S.me?.is_owner?'RePartes USA Official Parts':'')}<button class="primary">${S.me?.is_owner?'Create my own store':'Solicitar revisión'}</button></form>`;
- const publish=`<form class="panel" id="listing"><h2>Publicar pieza</h2><p>Todos los anuncios requieren aprobación del Owner.</p>${field('title','Nombre de la pieza')}${field('make','Marca del auto')}${field('model','Modelo del auto')}${field('year_min','Año desde','2010','number')}${field('year_max','Año hasta','2020','number')}${field('part_number','Número de pieza','','text',false)}${field('price','Precio USD, envío incluido','49.99')}<label>Condición<select name="condition"><option value="used">Usada</option><option value="remanufactured">Remanufacturada</option><option value="new">Nueva</option></select></label><label>Fotografía original de la pieza (JPG, PNG o WebP, hasta 5 MB)<input name="part_photo" type="file" accept="image/jpeg,image/png,image/webp"></label><input name="image_url" type="hidden"><p>Sube la foto auténtica de tu artículo, tomada con tu teléfono. No se permiten imágenes de catálogo, IA ni artículos que no tengas.</p><label class="check"><input type="checkbox" name="seller_has_item" required> Confirmo que tengo físicamente esta pieza, lista para enviar.</label><label class="check"><input type="checkbox" name="original_photo_attested" required> Confirmo que la foto es original y corresponde exactamente al artículo.</label><label>Descripción<textarea name="description" rows="5" required></textarea></label><h3>Seller contact (optional)</h3><p>Publish business contact details only if you want buyers to see them. Never use private personal details.</p>${field('contact_email','Business email (optional)','','email',false)}${field('contact_phone','Business phone (optional)','','tel',false)}<label class="check"><input type="checkbox" name="public_contact_enabled"> I agree to show this contact information publicly on my part listing.</label><button class="primary">Enviar para aprobación</button></form>`;
+ const publish=`<form class="panel" id="listing"><h2>Publicar pieza</h2><p>Todos los anuncios requieren aprobación del Owner.</p>${field('title','Nombre de la pieza')}${field('make','Marca del auto')}${field('model','Modelo del auto')}${field('year_min','Año desde','2010','number')}${field('year_max','Año hasta','2020','number')}${field('part_number','Número de pieza','','text',false)}${field('price','Precio USD, envío incluido','49.99')}<label>Condición<select name="condition"><option value="used">Usada</option><option value="remanufactured">Remanufacturada</option><option value="new">Nueva</option></select></label><label>Fotografía original de la pieza (JPG, PNG o WebP, hasta 5 MB)<input name="part_photo" type="file" accept="image/jpeg,image/png,image/webp"></label><input name="image_url" type="hidden"><p>Sube la foto auténtica de tu artículo, tomada con tu teléfono. No se permiten imágenes de catálogo, IA ni artículos que no tengas.</p><label class="check"><input type="checkbox" name="seller_has_item" required> Confirmo que tengo físicamente esta pieza, lista para enviar.</label><label class="check"><input type="checkbox" name="original_photo_attested" required> Confirmo que la foto es original y corresponde exactamente al artículo.</label><label>Descripción<textarea name="description" rows="5" required></textarea></label>${sellerEvidenceFields}<h3>Seller contact (optional)</h3><p>Publish business contact details only if you want buyers to see them. Never use private personal details.</p>${field('contact_email','Business email (optional)','','email',false)}${field('contact_phone','Business phone (optional)','','tel',false)}<label class="check"><input type="checkbox" name="public_contact_enabled"> I agree to show this contact information publicly on my part listing.</label><button class="primary">Enviar para aprobación</button></form>`;
  const rows=(m.listings||[]).map(x=>`<tr><td>${esc(x.title)}</td><td>${money(x.price_cents)}</td><td>${statusBadge(x.status)}</td><td>${['pending','approved','rejected'].includes(x.status)?`<button data-act="edit" data-id="${esc(x.id)}">Editar</button> <button data-act="withdraw" data-id="${esc(x.id)}">Retirar del mercado</button>`:'—'}</td></tr>`).join('');
  const sales=(m.sales||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${statusBadge(x.status)}</td><td>${x.status==='paid'?`<button data-act="ship" data-id="${esc(x.id)}">Registrar tracking</button>`:esc(x.tracking_code||'—')}</td></tr>`).join('');
  layout(`<section class="section"><h1>Centro de vendedores</h1>${!seller?apply:`<div class="panel"><h2>${esc(seller.shop_name)} ${statusBadge(seller.status)}</h2><p>${seller.is_platform_store?'Owner store: paid to the main Stripe account, no internal commission.':'Stripe Connect: '+(seller.account_ready?'Listo':'Pendiente de configurar')}</p><p>Commission for this store: ${(seller.commission_bps/100).toFixed(2)}%</p>${seller.is_platform_store?'':'<button data-act="connect">Conectar Stripe para recibir pagos</button>'}</div>${publish}<h2>Mis anuncios</h2>${table(['Pieza','Precio','Estado','Acción'],rows)}<h2>Ventas</h2>${table(['Pieza','Precio','Estado','Envío'],sales)}`}</section>`);
@@ -386,7 +389,7 @@ function owner(){
   return;
  }
  const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
- const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p>${q.zip_code?`<p><span>ZIP code</span> ${esc(q.zip_code)}</p>`:''}<p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div>${ownerQuoteTools(q,esc)}</article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
+ const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p>${q.zip_code?`<p><span>ZIP code</span> ${esc(q.zip_code)}</p>`:''}<p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div>${ownerAlertMatches(q,S.site?.listings||[],esc)}${ownerQuoteTools(q,esc)}</article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
  const testState=S.checkoutTest||{},testRecord=testState.record;
  const testPassed=Boolean(testRecord?.paid_webhook_at&&testRecord?.refund_webhook_at&&testRecord?.status==='refunded');
  const testPanel=`<section class="panel"><h2>Payment launch checklist</h2><p>Server environment: <strong>${esc(testState.mode||'disabled')}</strong>. Customer payments: <strong>${settings.payments_enabled?'enabled':'off'}</strong>.</p><h3>Private purchase and refund test</h3><p>This uses $10 in Stripe test funds. No real card or physical inventory is needed. Test records are separate from marketplace sales.</p><p>Status: <strong>${testPassed?'Payment and refund webhooks verified':esc(testRecord?.status||'Not started')}</strong></p><p>Payment webhook: ${testRecord?.paid_webhook_at?'received':'pending'} · Refund webhook: ${testRecord?.refund_webhook_at?'received':'pending'}</p>${testState.mode==='test'&&testState.configured?'<button class="primary" data-act="checkoutteststart">Open private test checkout</button> '+(testRecord?.paid_webhook_at&&!testRecord.refund_webhook_at?'<button data-act="checkouttestrefund">Refund test payment</button> ':''):'<p>Test checkout requires CHECKOUT_MODE=test and a server-side test key.</p>'}<button data-act="retry">Refresh test results</button><h3>Real inventory</h3><p>Only publish parts that a seller actually has, using original photos and accurate compatibility, condition and price.</p><a href="/#sell">Submit a real part</a></section>`;
@@ -490,7 +493,7 @@ async function route(){
   }
   if(p==='referrals'&&S.session)S.referrals=await api('referrals');
   if(p==='owner'&&S.me?.is_owner){
-   const [dashboard,test,quotes,supplier]=await Promise.all([api('dashboard'),api('checkout-test'),api('part-requests'),api('supplier-status')]);
+   const [dashboard,test,quotes,supplier]=await Promise.all([api('dashboard'),api('checkout-test'),api('part-requests'),api('supplier-status'),loadPublicCatalog()]);
    if(version!==current)return;
    S.admin=dashboard;
    S.checkoutTest=test;
@@ -565,7 +568,7 @@ document.addEventListener('click',async ev=>{
   if(a==='logout'){clearOfferDraft();document.getElementById('offeradd')?.reset();await sb.auth.signOut();S.session=null;S.me=null;if(!isOwnerPage)location.hash='#home';await route();return}
   if(a==='connect'){const r=await api('seller.connect','POST',{});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
   if(a==='checkout'){if(!S.session){location.hash='#login';return}if(!confirm('Continuar al pago protegido por Stripe?'))return;const r=await api('checkout','POST',{listing_id:id});if(new URL(r.url).protocol!=='https:')throw Error('Enlace no seguro');location.href=r.url;return}
-  if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type==='checkbox')elem.checked=Boolean(v);else if(elem&&elem.type!=='file')elem.value=v??''}f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
+  if(a==='edit'){const x=S.mine?.listings?.find(z=>z.id===id),f=document.getElementById('listing');if(x&&f){for(const [k,v] of Object.entries(x)){const elem=f.elements.namedItem(k);if(elem&&elem.type==='checkbox')elem.checked=Boolean(v);else if(elem&&elem.type!=='file')elem.value=v??''}loadSellerEvidence(f,x.description||'');f.elements.namedItem('price').value=(x.price_cents/100).toFixed(2);f.dataset.id=id;f.scrollIntoView();toast('Pieza cargada. Al guardar deberá aprobarse nuevamente.')}return}
   if(a==='returntracking'){const t=prompt('Número real de seguimiento para devolver la pieza');if(!t)return;await api('return.tracking','POST',{id,tracking_code:t});toast('Envío de retorno registrado');await route();return}
   if(a==='delivery'){const d=prompt('Fecha de entrega confirmada por transportista (AAAA-MM-DD)');if(!d)return;await api('admin.delivery','POST',{id,delivered_at:d});toast('Entrega registrada');await route();return}
   if(a==='ship'){const t=prompt('Número real de seguimiento');if(!t)return;await api('order.ship','POST',{id,tracking_code:t});toast('Seguimiento guardado');await route();return}
@@ -597,7 +600,7 @@ function setPartNumberMode(byNumber){
 }
 document.addEventListener('click',ev=>{
  const map=ev.target.closest('[data-local-map]');
- if(map){openLocalMap?.(map.dataset.localMap==='search');return;}
+ if(map){openLocalMap?.(map.dataset.localMap);return;}
  const mode=ev.target.closest('#part-number-mode');
  if(mode){
   setPartNumberMode(!S.searchByNumber);
@@ -649,6 +652,7 @@ document.addEventListener('submit',async ev=>{
   if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('Solicitud enviada a revisión');location.hash='#orders'}
   if(f.id==='listing'){
     if(f.dataset.id)v.id=f.dataset.id;
+    v.description=withSellerEvidence(v);
     const file=f.elements.namedItem('part_photo')?.files?.[0];
     if(file){
      if(file.size>5*1024*1024||!['image/jpeg','image/png','image/webp'].includes(file.type))throw Error('La foto debe ser JPG, PNG o WebP y pesar menos de 5 MB.');
@@ -694,7 +698,7 @@ document.addEventListener('submit',async ev=>{
  finally{button.disabled=false}
 });
 document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
-if(!isOwnerPage&&!isQuotePage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q});
+if(!isOwnerPage&&!isQuotePage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q,getOemQuery:()=>S.searchByNumber?S.q:''});
 window.addEventListener('hashchange',route);
 (async()=>{
  if(isQuotePage){await route();return;}

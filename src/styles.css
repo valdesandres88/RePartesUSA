@@ -210,3 +210,11 @@
 .amazon-pagination{display:flex;justify-content:center;flex-wrap:wrap;gap:8px;margin-top:24px}
 .amazon-pagination a,.amazon-pagination span{display:grid;place-items:center;min-width:44px;min-height:44px;border:1px solid var(--line);border-radius:8px;text-decoration:none}
 .amazon-pagination [aria-current="page"]{background:#102520;color:#fff;border-color:#102520}
+
+.part-tool-grid{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,240px),1fr));gap:16px;margin-block:16px}
+.part-tool-grid>.panel{margin:0;min-width:0}
+.part-tool-grid h3{margin-top:0}
+.connector-photos{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;margin:16px 0}
+.connector-photos figure{margin:0;min-width:0}
+.connector-photos figure img{width:100%;aspect-ratio:1;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#f4f7f6}
+.connector-photos figcaption{font-size:.875rem;margin-top:6px}

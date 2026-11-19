@@ -39,8 +39,9 @@ export function mountLocalMap(root,es,getQuery){
    show(area);
   },fallback,{timeout:10000,maximumAge:60000});
  });
- return fromSearch=>{
-  if(fromSearch){form.elements.term.value=getQuery().slice(0,100);form.elements.category.value='auto parts store';}
+ return mode=>{
+  if(mode==='install'){form.elements.category.value='auto repair shop';form.elements.term.value='';}
+  if(mode==='search'){form.elements.term.value=getQuery().slice(0,100);form.elements.category.value='auto parts store';}
   root.open=true;
   search();
   root.scrollIntoView({block:'start'});
