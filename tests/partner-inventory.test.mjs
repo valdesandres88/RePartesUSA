@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import {supplierConfiguration,createPartnerSearch,normalizePartnerItems} from '../netlify/lib/partner-inventory.mjs';
+import {supplierConfiguration,createFeaturedPartnerInventory,createPartnerSearch,normalizePartnerItems} from '../netlify/lib/partner-inventory.mjs';
 const env={EBAY_CLIENT_ID:'test-client',EBAY_CLIENT_SECRET:'test-secret',EBAY_AFFILIATE_CAMPAIGN_ID:'1234567890',EBAY_PRODUCTION_APPROVED:'true'};
 const item={itemId:'real-api-record',title:'Alternator',price:{value:'50.25',currency:'USD'},itemAffiliateWebUrl:'https://www.ebay.com/itm/example?campid=1234567890',image:{imageUrl:'https://i.ebayimg.com/image.jpg'}};
 test('Missing provider approval or credentials returns no inventory and never calls eBay',async()=>{
@@ -31,4 +31,22 @@ test('Invalid queries and upstream failures never fabricate results or expose cr
  let calls=0;const search=createPartnerSearch({fetchImpl:async()=>{calls++;throw Error('test-secret')}});
  assert.equal((await search('x',env)).status,'invalid_query');assert.equal(calls,0);
  const failed=await search('turbo',env);assert.equal(failed.status,'unavailable');assert.deepEqual(failed.items,[]);assert.ok(!JSON.stringify(failed).includes('test-secret'));
+});
+
+test('Featured inventory combines distinct listings from available categories and coalesces concurrent loads',async()=>{
+ const calls=[];
+ const featured=createFeaturedPartnerInventory(async query=>{
+  calls.push(query);
+  if(query==='spark plugs')return {status:'unavailable',items:[]};
+  return {status:'connected',items:[{id:'shared'},{id:query},{id:query},{id:query+' 2'}]};
+ });
+ const [first,second]=await Promise.all([featured(),featured()]);
+ assert.equal(calls.length,4);
+ assert.equal(first,second);
+ assert.equal(first.status,'connected');
+ assert.deepEqual(first.items.map(x=>x.id),['shared','brake pads','alternator','alternator 2','oil filter','oil filter 2']);
+});
+test('Featured inventory does not fabricate products when eBay is unavailable',async()=>{
+ const featured=createFeaturedPartnerInventory(async()=>({status:'unavailable',items:[]}));
+ assert.deepEqual(await featured(),{status:'unavailable',items:[]});
 });

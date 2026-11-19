@@ -48,3 +48,32 @@ export function createPartnerSearch({fetchImpl=fetch,now=Date.now}={}){
  };
 }
 export const searchPartnerInventory=createPartnerSearch();
+
+const featuredQueries=['brake pads','alternator','oil filter','spark plugs'];
+
+export function createFeaturedPartnerInventory(search){
+ let pending;
+ async function load(){
+  const results=await Promise.all(featuredQueries.map(query=>search(query)));
+  const connected=results.filter(result=>result.status==='connected');
+  if(!connected.length)return results[0];
+
+  const seen=new Set();
+  const items=connected.flatMap(result=>{
+   const picks=[];
+   for(const item of result.items){
+    if(seen.has(item.id))continue;
+    seen.add(item.id);
+    picks.push(item);
+    if(picks.length===2)break;
+   }
+   return picks;
+  });
+  return {status:'connected',provider:'eBay',items};
+ }
+ return function featured(){
+  if(!pending)pending=load().finally(()=>{pending=null});
+  return pending;
+ };
+}
+export const featuredPartnerInventory=createFeaturedPartnerInventory(searchPartnerInventory);

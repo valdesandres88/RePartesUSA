@@ -90,7 +90,7 @@ function layout(inner){
   return;
  }
  const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
@@ -123,9 +123,7 @@ const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a
 function catalogResults(){
  if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
  const {listings,offers}=catalogMatches();
- if(!listings.length&&!offers.length){
-  return S.q.trim().length<2?'<p>Enter a part name or number to search eBay.</p>':'';
- }
+ if(!listings.length&&!offers.length)return '';
  const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p><strong>${money(x.price_cents)}</strong></div></a>`;
  const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
  return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
@@ -138,32 +136,79 @@ function setPartnerResults(area,markup){
  localize(area,currentLanguage);
 }
 async function updatePartnerResults(){
- clearTimeout(partnerSearchTimer);partnerSearchController?.abort();
- const area=document.getElementById('partner-results');if(!area)return;
+ clearTimeout(partnerSearchTimer);
+ partnerSearchController?.abort();
+ const area=document.getElementById('partner-results');
+ if(!area)return;
+
  const q=S.q.trim();
- if(q.length<2){area.innerHTML='';return;}
- setPartnerResults(area,'<p>Searching eBay…</p>');
- const controller=new AbortController();partnerSearchController=controller;
+ const featured=q.length===0;
+ if(!featured&&q.length<2){area.innerHTML='';return;}
+ const heading=featured?'Featured parts from eBay':'eBay inventory · Affiliate links';
+ setPartnerResults(area,`<h2>${heading}</h2><p>${featured?'Loading featured parts…':'Searching eBay…'}</p>`);
+ const controller=new AbortController();
+ partnerSearchController=controller;
  const isCurrent=()=>!controller.signal.aborted&&S.q.trim()===q&&area.isConnected;
+ const params=new URLSearchParams(featured?{featured:'1'}:{q});
+
  try{
-  const response=await fetch('/api/partner-search?'+new URLSearchParams({q}),{signal:controller.signal,cache:'no-store'});
+  const response=await fetch('/api/partner-search?'+params,{signal:controller.signal,cache:'no-store'});
   if(!response.ok)throw Error('supplier');
   const data=await response.json();
   if(!isCurrent())return;
   if(data.status!=='connected'||!Array.isArray(data.items))throw Error('supplier');
   if(!data.items.length){
-   setPartnerResults(area,S.site&&noCatalogMatches()?emptyResults:'<p>No matching listings on eBay.</p>');
+   if(featured)area.innerHTML='';
+   else setPartnerResults(area,S.site&&noCatalogMatches()?emptyResults:'<p>No matching listings on eBay.</p>');
    return;
   }
-  setPartnerResults(area,'<h3>eBay inventory · Affiliate links</h3><p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid">'+data.items.map(x=>`<article class="product">${x.image?'<img src="'+esc(x.image)+'" alt="'+esc(x.title)+'" loading="lazy">':''}<div><small>eBay${x.condition?' · '+esc(x.condition):''}</small><h3 data-no-translate>${esc(x.title)}</h3><strong>${money(Math.round(x.price*100))}</strong><p>Shipping and taxes may be extra.</p><a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay</a></div></article>`).join('')+'</div>');
+  const cards=data.items.map(x=>`<article class="product ebay-card">
+   ${x.image?`<img src="${esc(x.image)}" alt="" loading="lazy">`:''}
+   <div class="ebay-card-body">
+    <small><b>eBay</b>${x.condition?' · '+esc(x.condition):''}</small>
+    <h3 data-no-translate>${esc(x.title)}</h3>
+    <strong>${money(Math.round(x.price*100))}</strong>
+    <a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay</a>
+   </div>
+  </article>`).join('');
+  setPartnerResults(area,`<h2>${heading}</h2><p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid ebay-grid">${cards}</div>`);
  }catch{
-  if(isCurrent())setPartnerResults(area,'<p>eBay search is temporarily unavailable. Try again shortly.</p>');
+  if(!isCurrent())return;
+  const message=featured?'Featured eBay parts are temporarily unavailable.':'eBay search is temporarily unavailable. Try again shortly.';
+  setPartnerResults(area,`<p>${message}</p>`);
  }
 }
+
 function home(){
  const st=S.site?.settings||{};
- layout(`<section class="search-hero"><div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div class="search-hero-inner"><h1>${esc(st.hero_title||'Keep your vehicle moving.')}<br><span>Start with the right part.</span></h1><p class="hero-intro">Search published parts and partner offers by part name, number, or vehicle.</p><form id="part-search" role="search" class="hero-search"><label for="search">What part are you looking for?<input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="Try: turbo Duramax 2005" value="${esc(S.q)}" aria-controls="catalog-results partner-results"></label><button class="primary" type="submit">Find my part <span aria-hidden="true">↗</span></button></form><div class="search-hints"><span>Try a search:</span><button type="button" data-search-term="turbo Duramax">Turbo Duramax</button><button type="button" data-search-term="alternator">Alternator</button><button type="button" data-search-term="brake pads">Brake pads</button></div><button type="button" class="hero-request" data-request-part>Can't find it? Request a part →</button></div></section><section class="section" id="catalog"><div class="eyebrow">THE PART FINDER</div><h2>Explore published parts & offers</h2><p>Search matches are suggestions. Confirm the part number, vehicle fitment and availability before buying.</p><div id="catalog-results">${catalogResults()}</div><div id="partner-results" aria-live="polite"></div></section><section class="section buyer-section"><div><div class="eyebrow">BUY WITH MORE CONTEXT</div><h2>A little checking goes a long way.</h2><p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p><a class="secondary" href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Read the parts buying guide</a></div></section><section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`);
- if(S.q)updatePartnerResults();
+ layout(`
+  <section class="search-hero">
+   <div class="search-hero-inner">
+    <h1>${esc(st.hero_title||'Keep your vehicle moving.')}</h1>
+    <form id="part-search" role="search" class="hero-search">
+     <label for="search">What part are you looking for?
+      <input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="Part, vehicle or part number" value="${esc(S.q)}" aria-controls="catalog-results partner-results">
+     </label>
+     <button class="primary" type="submit">Find my part</button>
+    </form>
+    <div class="search-hints">
+     <button type="button" data-search-term="brake pads">Brake pads</button>
+     <button type="button" data-search-term="alternator">Alternator</button>
+     <button type="button" data-search-term="turbo Duramax">Turbo Duramax</button>
+    </div>
+   </div>
+  </section>
+  <section class="section shop-catalog" id="catalog" aria-label="${currentLanguage==='es'?'Catálogo de piezas':'Parts catalog'}">
+   <div id="partner-results" aria-live="polite"></div>
+   <div id="catalog-results">${catalogResults()}</div>
+  </section>
+  <section class="section buyer-section">
+   <h2>Auto parts buying guide</h2>
+   <p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p>
+   <a class="secondary" href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Read the parts buying guide</a>
+  </section>
+  <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`);
+ void updatePartnerResults();
 }
 
 function part(id){
@@ -397,7 +442,8 @@ document.addEventListener('click',async ev=>{
 document.addEventListener('input',ev=>{if(ev.target.id==='search'){
  S.q=ev.target.value;updateCatalogResults();clearTimeout(partnerSearchTimer);partnerSearchController?.abort();
  const area=document.getElementById('partner-results');if(area)area.innerHTML='';
- if(S.q.trim().length>=2)partnerSearchTimer=setTimeout(updatePartnerResults,650);
+ const length=S.q.trim().length;
+ if(length===0||length>=2)partnerSearchTimer=setTimeout(updatePartnerResults,650);
 }});
 document.addEventListener('click',ev=>{
  const button=ev.target.closest('[data-search-term]');if(!button)return;

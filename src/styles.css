@@ -57,7 +57,75 @@
 .request-submit{width:100%;display:flex;align-items:center;justify-content:space-between;padding:14px 20px;font-size:16px;border-radius:30px}.request-footnote{font-size:11px;text-align:center;color:var(--muted);margin:12px 0 14px}.request-result{font-size:13px;color:#a32925}.request-result:empty{display:none}.request-result.success{color:var(--forest);background:#e8f5e9;padding:14px;border-radius:12px}.request-clear{font-size:11px;padding:5px 9px;display:block;margin:auto}.request-draft-note{display:block;font-size:10px;color:var(--muted);text-align:center;margin:9px 0 0}.request-honeypot{position:absolute!important;left:-10000px!important;width:1px;height:1px;overflow:hidden}.request-inbox{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,300px),1fr));gap:14px}.request-inbox-card{padding:20px;border:1px solid var(--line);border-radius:16px;overflow-wrap:anywhere}.request-inbox-card h3{margin:12px 0 8px}.request-inbox-card small{display:block;margin-bottom:14px;color:var(--muted)}
 @media(max-width:520px){.part-request-dialog{padding:27px 20px;border-radius:23px;max-height:88dvh}.vehicle-card{padding:15px}.request-contact{grid-template-columns:1fr;gap:0}.request-vehicle{gap:7px}.request-vehicle input{padding:11px 8px}.request-intro{font-size:13px}.request-close{right:12px;top:12px}.page-navigation{gap:10px}.page-navigation button{font-size:12px}}
 
-/* RePartes part finder: distinct typography, open space, and a search-first hero. */
-.search-hero{position:relative;isolation:isolate;overflow:hidden;background:#0c302c;color:#fff;padding:68px 24px 52px}.search-hero-inner{max-width:1110px;margin:auto;position:relative;z-index:1}.search-hero h1{max-width:950px;font-size:clamp(2.8rem,5.2vw,4.8rem);line-height:1.09;letter-spacing:-.055em;margin:25px 0}.search-hero h1 span{color:#dff66c}.search-hero .hero-intro{color:#c4d8cf;font-size:18px;max-width:650px;margin-bottom:30px}.hero-orbit{position:absolute;right:-160px;top:-220px;width:780px;height:780px;border:1px solid #709c7033;border-radius:50%;z-index:0;pointer-events:none}.hero-orbit span{position:absolute;inset:60px;border:1px solid #98be7733;border-radius:50%}.hero-orbit span:nth-child(2){inset:130px}.hero-orbit span:nth-child(3){inset:210px;background:#a4cb6c08}.hero-search{display:flex;gap:15px;align-items:center;background:#fff;border:2px solid #e2f478;border-radius:60px;padding:12px 13px 12px 30px;box-shadow:0 12px 50px #0003;max-width:1030px}.hero-search label{flex:1;min-width:0;font-size:12px;font-weight:700;color:#637770;letter-spacing:.01em}.hero-search #search{display:block;margin:4px 0 0;padding:0;border:0;border-radius:0;box-shadow:none;background:transparent;color:#163c33;font-size:20px;min-width:0;outline:none}.hero-search:focus-within{outline:3px solid #76b597;outline-offset:5px}.hero-search .primary{padding:20px 28px;border-radius:40px;white-space:nowrap;font-size:16px}.hero-search .primary span{margin-left:18px}.search-hints{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:20px 0 30px;font-size:12px;color:#c2d3c9}.search-hints button{background:#ffffff0a;color:#d8e7de;border:1px solid #89a69655;border-radius:25px;font-size:12px;padding:6px 12px}.search-hints button:hover{color:#153c32!important}.hero-request{border:0;border-bottom:1px solid #a9c7a9;border-radius:0;color:#def46c;background:none;margin:23px 0 0;padding:0 0 3px;font-size:13px}.hero-request:hover{background:none!important;color:white}.search-count{font-weight:700;border-top:1px solid var(--line);padding-top:20px;margin:25px 0}.offer-card small{display:block;margin-top:16px}#catalog{scroll-margin-top:74px}#catalog-results:not(:empty)+#partner-results:not(:empty){margin-top:28px}.buyer-section{background:#edf3e8;border-radius:20px}.search-hero button:focus-visible,.hero-search input:focus-visible{outline:3px solid #5aa07c;outline-offset:4px}
-@media(max-width:730px){.search-hero{padding:42px 20px 32px}.search-hero h1{font-size:clamp(2.4rem,8.8vw,3.8rem);margin:20px 0}.search-hero .hero-intro{font-size:16px}.hero-search{border-radius:23px;padding:15px;gap:12px;align-items:stretch;flex-direction:column}.hero-search #search{font-size:17px;padding:7px 0}.hero-search .primary{padding:13px 20px;width:100%;border-radius:13px}.search-hints{margin:18px 0 23px}.buyer-section{border-radius:0}.hero-orbit{right:-570px}}
+/* Storefront search and live inventory */
+.search-hero{
+ position:relative;overflow:hidden;background:
+ radial-gradient(ellipse at 85% 0%,#26695870,transparent 55%),
+ repeating-linear-gradient(90deg,#c9ffdd09 0 1px,transparent 1px 44px),
+ repeating-linear-gradient(0deg,#c9ffdd09 0 1px,transparent 1px 44px),#102520;
+ color:#f2faf6;padding:34px 24px 28px;border-bottom:1px solid #80b59d;
+}
+.search-hero-inner{max-width:1170px;margin:auto}
+.search-hero h1{
+ max-width:850px;font-size:clamp(2.25rem,5vw,4.65rem);
+ line-height:1.03;letter-spacing:-.055em;margin:0 0 24px;text-wrap:balance;
+}
+.hero-search{
+ display:flex;gap:12px;align-items:center;background:#f9fffb;border:1px solid #93cbb2;
+ border-radius:16px;padding:7px 7px 7px 17px;max-width:850px;
+ box-shadow:0 10px 35px #050f0c55;
+}
+.hero-search label{flex:1;min-width:0;font-size:12px;font-weight:750;color:#486259}
+.hero-search #search{
+ display:block;margin:0;padding:3px 0 1px;border:0;border-radius:0;
+ box-shadow:none;background:transparent;color:#152c24;font-size:18px;min-width:0;outline:none;
+}
+.hero-search:focus-within{outline:2px solid #a5efc8;outline-offset:4px}
+.hero-search .primary{padding:13px 20px;white-space:nowrap;border-radius:11px;background:#bfffa2;color:#122517}
+.search-hints{display:flex;gap:8px;flex-wrap:wrap;margin:15px 0 0}
+.search-hints button{
+ min-height:36px;background:#effcf40a;color:#dcf5e8;border:1px solid #97c7ad55;
+ border-radius:9px;font-size:13px;padding:5px 11px;
+}
+.search-hints button:hover{color:#102520;background:#e4f5e8}
+.search-hero button:focus-visible{outline:2px solid #a5efc8;outline-offset:3px}
+.shop-catalog{padding-top:30px;scroll-margin-top:68px}
+#partner-results h2{margin-bottom:8px}
+#partner-results>p{max-width:68ch;margin:0 0 18px}
+#partner-results:not(:empty)+#catalog-results:not(:empty){margin-top:35px}
+.search-count{font-weight:700;border-top:1px solid var(--line);padding-top:20px;margin:25px 0}
+.offer-card small{display:block;margin-top:16px}
+.ebay-grid{grid-template-columns:repeat(4,minmax(0,1fr));gap:16px}
+.ebay-card{display:flex;flex-direction:column;border-radius:16px}
+.ebay-card:hover{transform:none;border-color:#81aa96}
+.ebay-card>img{height:auto;aspect-ratio:4/3;object-fit:contain;background:#fff;border-bottom:1px solid #e0ebe3}
+.ebay-card>.ebay-card-body{display:flex;flex-direction:column;align-items:flex-start;gap:10px;flex:1;padding:14px}
+.ebay-card small{color:#516e60}
+.ebay-card small b{color:#246148}
+.ebay-card h3{margin:0;min-height:0;font-size:clamp(.95rem,1.45vw,1.12rem);line-height:1.25;letter-spacing:-.01em;overflow-wrap:anywhere}
+.ebay-card strong{border:0;margin:auto 0 0;padding:3px 0 0;color:#163b2b;font-size:1.3rem}
+.ebay-card .secondary{
+ display:flex;align-items:center;justify-content:space-between;gap:8px;width:100%;
+ min-height:44px;padding:8px 11px;border:1px solid #b6d4c3;border-radius:9px;
+ background:#eaf6ee;color:#16402d;font-size:.85rem;
+}
+.ebay-card .secondary::after{content:'↗' / ''}
+.ebay-card .secondary:hover{transform:none;background:#d6f2e1;color:#16402d}
+.buyer-section{margin-top:12px;background:#edf3e8;border-radius:16px}
+@media(max-width:900px){.ebay-grid{grid-template-columns:repeat(3,minmax(0,1fr))}}
+@media(max-width:650px){
+ .search-hero{padding:23px 16px 19px}
+ .search-hero h1{font-size:clamp(2rem,8vw,3.1rem);margin-bottom:17px}
+ .hero-search{gap:7px;padding:5px 5px 5px 11px;border-radius:13px}
+ .hero-search #search{font-size:16px}
+ .hero-search .primary{padding:10px;min-height:44px;font-size:13px;border-radius:8px}
+ .search-hints{gap:6px;margin-top:11px}
+ .shop-catalog{padding-top:23px}
+ #partner-results>p{font-size:13px;margin-bottom:13px}
+ .ebay-grid{grid-template-columns:repeat(2,minmax(0,1fr));gap:9px}
+ .ebay-card{border-radius:12px}
+ .ebay-card>.ebay-card-body{padding:9px;gap:8px}
+ .ebay-card .secondary{padding:7px 8px}
+ .buyer-section{border-radius:0}
+}
 @media(prefers-reduced-motion:reduce){html{scroll-behavior:auto}*{transition:none!important}}
