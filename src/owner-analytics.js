@@ -30,7 +30,11 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
  if(!root)return;
  const spanish=language==='es',text=(en,es)=>spanish?es:en;
  const locale=spanish?'es-US':'en-US';
- const fmt=n=>new Intl.NumberFormat(locale).format(Number(n)||0);
+ const countFormat=new Intl.NumberFormat(locale);
+ const decimalFormat=new Intl.NumberFormat(locale,{maximumFractionDigits:2});
+ const percentFormat=new Intl.NumberFormat(locale,{style:'percent',maximumFractionDigits:1});
+ const fmt=n=>countFormat.format(Number(n)||0);
+ const ratio=(numerator,denominator,format)=>denominator>0?format.format(numerator/denominator):'—';
  const date=new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',timeZone:'UTC'});
  const clock=new Intl.DateTimeFormat(locale,{hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'America/New_York'});
  const label=(items,key)=>items[key]?.[spanish?1:0]||'';
@@ -72,9 +76,9 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
   </div>`;
  }
 
- function rows(title,entries){
+ function rows(title,entries,format=fmt){
   return `<section class="analytics-list"><h3>${title}</h3>${entries.length?
-   `<dl>${entries.map(([name,value])=>`<div><dt>${esc(name)}</dt><dd>${fmt(value)}</dd></div>`).join('')}</dl>`:
+   `<dl>${entries.map(([name,value])=>`<div><dt>${esc(name)}</dt><dd>${esc(format(value))}</dd></div>`).join('')}</dl>`:
    `<p>${text('No activity in this period.','Sin actividad en este período.')}</p>`}</section>`;
  }
  function render(data){
@@ -82,14 +86,17 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
   const summaryWasFocused=content.querySelector('summary')===document.activeElement;
   const plotScroll=content.querySelector('.analytics-plot')?.scrollLeft||0;
   const a=data.activity;
+  const searches=(a.search||0)+(a.oem_search||0);
+  const outboundClicks=(a.ebay_click||0)+(a.partner_click||0);
   const cards=[
    [text('Visits','Visitas'),fmt(data.visits)], [text('Page views','Páginas vistas'),fmt(data.views)],
-   [text('Searches','Búsquedas'),fmt((a.search||0)+(a.oem_search||0))],
+   [text('Searches','Búsquedas'),fmt(searches)],
    [text('Part requests','Solicitudes de piezas'),fmt(data.requests)],
    [text('Quotes created','Cotizaciones creadas'),fmt(data.quotes)],
    [text('New accounts','Cuentas nuevas'),fmt(data.registrations)],
    [text('Confirmed sales','Ventas confirmadas'),fmt(data.sales.orders)],
-   [text('Gross sales','Ventas brutas'),money(data.sales.gross_cents)]
+   [text('Gross sales','Ventas brutas'),money(data.sales.gross_cents)],
+   [text('Outbound shopping clicks','Clics hacia tiendas externas'),fmt(outboundClicks)]
   ];
   const chartMax=Math.max(1,...data.daily.map(day=>day.views));
   const hasViews=data.daily.some(day=>day.views>0);
@@ -101,8 +108,18 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
    [text('Other partner clicks','Clics en otros socios'),a.partner_click],
    [text('Quote links opened','Enlaces de cotización abiertos'),a.quote_open]
   ];
+  const performance=[
+   [text('Pages viewed per visit','Páginas vistas por visita'),ratio(data.views,data.visits,decimalFormat)],
+   [text('Searches with no matches (%)','Búsquedas sin coincidencias (%)'),ratio(a.no_results||0,searches,percentFormat)],
+   [text('OEM searches as share of all searches','Búsquedas OEM del total'),ratio(a.oem_search||0,searches,percentFormat)],
+   [text('Average confirmed order','Valor promedio del pedido confirmado'),data.sales.orders>0?money(Math.round(data.sales.gross_cents/data.sales.orders)):'—']
+  ];
+  const shareRows=(entries,total)=>entries.map(([name,value])=>[
+   name,total>0?fmt(value)+' · '+ratio(value,total,percentFormat):fmt(value)
+  ]);
   content.innerHTML=`<div class="metrics analytics-metrics">${cards.map(([name,value])=>
    `<article class="metric"><small>${name}</small><strong>${value}</strong></article>`).join('')}</div>
+   ${rows(text('Search and sales performance','Rendimiento de búsqueda y ventas'),performance,value=>value)}
    <section class="analytics-chart"><h3>${text('Page views by day','Páginas vistas por día')}</h3>
    ${hasViews?`<div class="analytics-plot" aria-hidden="true"><div class="analytics-bars" style="min-width:${data.daily.length*8}px">
     ${data.daily.map(day=>`<div title="${esc(dayLabel(day.day)+' · '+fmt(day.views))}" style="--height:${Math.max(2,100*day.views/chartMax)}%"></div>`).join('')}
@@ -114,9 +131,13 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
    </section>
    <div class="analytics-breakdowns">
     ${rows(text('Most viewed pages','Páginas más vistas'),data.pages.map(x=>[label(pageLabels,x.page),x.views]))}
-    ${rows(text('Traffic sources','Fuentes de tráfico'),data.sources.map(x=>[label(sourceLabels,x.source),x.visits]))}
-    ${rows(text('Devices','Dispositivos'),data.devices.map(x=>[label(deviceLabels,x.device),x.visits]))}
+    ${rows(text('Traffic sources','Fuentes de tráfico'),shareRows(data.sources.map(x=>[label(sourceLabels,x.source),x.visits]),data.visits),value=>value)}
+    ${rows(text('Devices','Dispositivos'),shareRows(data.devices.map(x=>[label(deviceLabels,x.device),x.visits]),data.visits),value=>value)}
     ${rows(text('Search and quote activity','Actividad de búsqueda y cotizaciones'),attribution)}
+    ${rows(text('Outbound clicks by destination','Clics externos por destino'),shareRows([
+     ['eBay',a.ebay_click||0],
+     [text('Other affiliate and partner links','Otros enlaces de afiliados y socios'),a.partner_click||0]
+    ],outboundClicks),value=>value)}
    </div>
    <p class="analytics-caption">${text('Gross marketplace commission','Comisión bruta del marketplace')} <strong>${money(data.sales.fee_cents)}</strong></p>`;
   const daily=content.querySelector('details');
