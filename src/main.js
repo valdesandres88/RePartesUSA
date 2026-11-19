@@ -18,6 +18,15 @@ const marketplaceRoute=()=>(location.hash||'#home').slice(1).split('/');
 
 const cfg=import.meta.env;
 let currentLanguage=getLanguage();
+// The auth client consumes the email callback fragment during initialization.
+function readRecoveryCallback(){
+ const params=new URLSearchParams(location.hash.slice(1));
+ if(params.get('type')==='recovery')return {token:params.get('access_token')};
+ if(params.has('error_description'))return {token:null};
+ return null;
+}
+let recoveryCallback=readRecoveryCallback();
+let recoveryUserId=null;
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
 const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:'',searchByNumber:false,currentReviews:null},app=document.getElementById('app');
 let refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
@@ -255,10 +264,22 @@ function part(id){
  layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Descripción del vendedor</h2><p>${esc(x.description)}</p></article>${commercialOffers('part')}<h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
 }
 function signInForm(){
- return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form>`;
+ return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button><p><a href="/#login/forgot">Forgot password?</a></p></form>`;
+}
+function passwordRecovery(mode){
+ const reset=mode==='reset';
+ const valid=recoveryUserId && recoveryUserId===S.session?.user?.id;
+ const fields=reset
+  ? '<label>New password (at least 10 characters)<input name="password" type="password" minlength="10" autocomplete="new-password" required></label><label>Confirm new password<input name="confirm" type="password" minlength="10" autocomplete="new-password" required></label><button class="primary">Save new password</button>'
+  : '<p>Enter the email address you used to sign up.</p><label>Email address<input name="email" type="email" autocomplete="email" required></label><button class="primary">Send reset link</button>';
+ const body=reset&&!valid
+  ? '<p>This reset link is no longer available.</p><a href="#login/forgot">Request a new link</a>'
+  : `<form class="panel" id="${reset?'reset-password':'forgot-password'}">${fields}<p role="status" aria-live="polite"></p></form>`;
+ layout(`<section class="section"><h1>${reset?'Choose a new password':'Reset your password'}</h1>${body}<p><a href="#login">Back to sign in</a></p></section>`);
 }
 function login(){
  const [page,mode]=marketplaceRoute();
+ if(mode==='forgot'||mode==='reset'){passwordRecovery(mode);return}
  const base=page==='sell'?'#sell':'#login';
  const registering=mode==='signup';
  const form=registering
@@ -629,6 +650,31 @@ document.addEventListener('submit',async ev=>{
   await route();
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
 });
+document.addEventListener('submit',async ev=>{
+ const form=ev.target;
+ if(!['forgot-password','reset-password'].includes(form.id))return;
+ ev.preventDefault();
+ const button=form.querySelector('button'),status=form.querySelector('[role="status"]');
+ if(button.disabled)return;
+ button.disabled=true;
+ try{
+  if(form.id==='forgot-password'){
+   const {error}=await sb.auth.resetPasswordForEmail(form.elements.email.value.trim(),{redirectTo:location.origin+'/'});
+   if(error && error.code!=='user_not_found')throw error;
+   status.textContent='If an account exists for this email, check your inbox and spam folder for a reset link.';
+  }else{
+   const password=form.elements.password.value;
+   if(password!==form.elements.confirm.value){status.textContent='The passwords do not match.';return}
+   if(!recoveryUserId||recoveryUserId!==S.session?.user?.id){passwordRecovery('reset');return}
+   const {error}=await sb.auth.updateUser({password});
+   if(error)throw error;
+   recoveryUserId=null;
+   form.reset();
+   layout('<section class="section"><h1>Password updated</h1><p>Your new password is ready to use.</p><a href="#home">Browse parts</a></section>');
+  }
+ }catch(error){status.textContent=error.status===429?'Too many requests. Please try again later.':(form.id==='forgot-password'?'We could not send the reset email. Please try again later.':'Could not update your password. Try a different password or request a new reset link.')}
+ finally{button.disabled=false}
+});
 document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
 if(!isOwnerPage&&!isQuotePage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q});
 window.addEventListener('hashchange',route);
@@ -637,11 +683,18 @@ window.addEventListener('hashchange',route);
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
-  await refreshIdentity();
+  if(recoveryCallback){
+   if(S.session && recoveryCallback.token===S.session.access_token)recoveryUserId=S.session.user.id;
+   recoveryCallback=null;
+   history.replaceState(null,'','/#login/reset');
+  }
+  if(recoveryUserId)await route();
+  else await refreshIdentity();
   await claimRef();
   sb.auth.onAuthStateChange((_event,session)=>{
    const previousUser=S.session?.user?.id;
    S.session=session;
+   if(recoveryUserId!==session?.user?.id)recoveryUserId=null;
    if(previousUser===session?.user?.id)return;
    S.me=null;
    if(isOwnerPage){
