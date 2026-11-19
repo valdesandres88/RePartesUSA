@@ -49,7 +49,18 @@ function toast(msg){window.alert(msg)}
 const SOCIAL_NETWORKS=[['x','X'],['telegram','Telegram'],['instagram','Instagram'],['facebook','Facebook'],['tiktok','TikTok'],['youtube','YouTube'],['threads','Threads'],['pinterest','Pinterest'],['linkedin','LinkedIn']];
 const DEFAULT_X_PROFILE='https://x.com/RePartesUSA';
 const officialSocialProfiles=(settings)=>({x:DEFAULT_X_PROFILE,...settings?.social_links});
-const socialLinks=()=>{const links=officialSocialProfiles(S.site?.settings);const publicProfiles=SOCIAL_NETWORKS.filter(([k])=>links[k]);return publicProfiles.length?'<div class="social-profiles"><strong>Follow RePartes USA:</strong> '+publicProfiles.map(([k,label])=>'<a href="'+esc(links[k])+'" target="_blank" rel="noopener noreferrer nofollow">'+esc(k==='x'&&links.x===DEFAULT_X_PROFILE?'X (@RePartesUSA)':label)+'</a>').join(' · ')+'</div>':''};
+const X_LOGO='<svg viewBox="0 0 24 24" width="18" height="18" aria-hidden="true" focusable="false"><path fill="currentColor" d="M18.901 1.153h3.68l-8.04 9.19L24 22.846h-7.406l-5.8-7.584-6.64 7.584H.47l8.6-9.835L0 1.154h7.594l5.243 6.932 6.064-6.933Zm-1.29 19.49h2.039L6.488 3.24H4.3l13.31 17.403Z"/></svg>';
+function socialLinks(){
+ const links=officialSocialProfiles(S.site?.settings);
+ const publicProfiles=SOCIAL_NETWORKS.filter(([key])=>links[key]);
+ if(!publicProfiles.length)return '';
+ const profiles=publicProfiles.map(([key,label])=>{
+  const attributes='href="'+esc(links[key])+'" target="_blank" rel="noopener noreferrer nofollow"';
+  if(key==='x')return '<a class="social-follow-x" '+attributes+'>'+X_LOGO+' <span>Follow us on X</span></a>';
+  return '<a '+attributes+'>'+esc(label)+'</a>';
+ });
+ return '<div class="social-profiles"><strong>Follow RePartes USA:</strong> '+profiles.join('')+'</div>';
+}
 function commercialOffers(placement){
  const offers=Array.isArray(S.site?.settings?.monetization_offers)?S.site.settings.monetization_offers:[];
  const shown=offers.filter(x=>x&&x.placement===placement&&['affiliate','sponsored'].includes(x.kind)&&/^https:\/\//.test(x.url||''));

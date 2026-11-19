@@ -18,6 +18,9 @@
 .language-label select{max-width:130px;background:#fff;border:1px solid var(--line);border-radius:8px;padding:7px;color:var(--ink)}
 .social-profiles{display:flex;flex-wrap:wrap;gap:9px 12px;align-items:center;margin-top:24px;padding-top:20px;border-top:1px solid #346459;color:#e7fff1}
 .social-profiles a{color:#dff66c;text-decoration:underline;text-underline-offset:3px;font-weight:650}
+.social-profiles .social-follow-x{display:inline-flex;align-items:center;gap:8px;min-height:44px;padding:8px 16px;border-radius:999px;background:#fff;color:#000;text-decoration:none;font-weight:750}
+.social-profiles .social-follow-x:hover{background:#eef1f2;color:#000}
+.social-profiles .social-follow-x:focus-visible{outline:2px solid #dff66c;outline-offset:3px}
 .review{border-bottom:1px solid var(--line);padding:20px 0}
 .review:last-child{border-bottom:none}
 .review h3{font-size:18px}
