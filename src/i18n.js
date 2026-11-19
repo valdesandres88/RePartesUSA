@@ -12,6 +12,7 @@ const esToEn={
 'Publicidad y afiliados':'Advertising & affiliates',
 'AUTOPARTES USADAS · MARKETPLACE USA':'USED AUTO PARTS · USA MARKETPLACE',
 'Mis pedidos':'My orders','Vender':'Sell','Referidos':'Referrals','Panel Owner':'Owner Dashboard','Salir':'Sign out',
+'Registrarse':'Sign up','¿Ya tienes una cuenta?':'Already have an account?','¿Es tu primera vez en RePartes USA?':'New to RePartes USA?',
 'Iniciar sesión':'Sign in','Explorar piezas':'Browse parts','Sobre nosotros':'About us','Contacto':'Contact',
 'Envíos y devoluciones':'Shipping & returns','Privacidad':'Privacy','Términos':'Terms',
 'Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.':'Automotive parts marketplace for independent sellers in the United States. Currency: USD. Purchases are not yet enabled.',

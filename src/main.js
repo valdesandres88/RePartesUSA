@@ -23,7 +23,7 @@ const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:''
 let refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
 if(/^[A-Z0-9]{12}$/.test(refQuery)){try{localStorage.setItem('repartes_referral',refQuery)}catch{}}
 const pendingRef=()=>{try{return localStorage.getItem('repartes_referral')||refQuery}catch{return refQuery}};
-const refUrl=()=>location.origin+location.pathname+'?ref='+encodeURIComponent(S.referrals?.code||'')+'#login';
+const refUrl=()=>location.origin+location.pathname+'?ref='+encodeURIComponent(S.referrals?.code||'')+'#login/signup';
 async function claimRef(){
  if(!S.session)return;
  const code=pendingRef()||String(S.session?.user?.user_metadata?.referral_code||'').toUpperCase();
@@ -100,7 +100,7 @@ function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute
   restoreOfferDraft();
   return;
  }
- const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
+ const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a><a href="#login/signup">Sign up</a>';
  app.innerHTML=`<header class="header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<a href="#contact/support">${currentLanguage==='es'?'Soporte':'Support'}</a>${languageSelector()}</nav></header><div class="page-navigation">${showBack?backButton():''}<button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}<p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></p></footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
@@ -258,7 +258,16 @@ function signInForm(){
  return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form>`;
 }
 function login(){
- layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password.</p><div class="two">${signInForm()}<form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
+ const [page,mode]=marketplaceRoute();
+ const base=page==='sell'?'#sell':'#login';
+ const registering=mode==='signup';
+ const form=registering
+  ? `<form class="panel" id="signup"><h2>Sign up</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="primary">Sign up</button><p>Si es necesario, confirma tu dirección de correo.</p></form>`
+  : signInForm();
+ const switchForm=registering
+  ? `Already have an account? <a href="${base}">Iniciar sesión</a>`
+  : `New to RePartes USA? <a href="${base}/signup">Sign up</a>`;
+ layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1>${form}<p>${switchForm}</p></section>`);
 }
 function feedback(){
  if(!S.session){layout(authWall);return}
@@ -302,7 +311,7 @@ function returnForm(id){
  layout(`<section class="section"><a href="#orders">← Mis pedidos</a><h1>Solicitar devolución</h1><p>Pedido ${esc(id)} · ${esc(order.listings?.title||'Autoparte')} · Entrega: ${esc(order.delivered_at||'pendiente')}</p><form id="returnrequest" class="panel" data-id="${esc(id)}"><label>Motivo<select name="reason" required><option value="damaged">Dañado al llegar</option><option value="defective">Defectuoso</option><option value="wrong_item">Pieza equivocada</option><option value="not_as_described">No coincide con el anuncio</option><option value="incompatible">Incompatibilidad</option><option value="changed_mind">Cambio de opinión</option><option value="other">Otro</option></select></label><label>Explica el caso (mínimo 20 caracteres)<textarea name="details" rows="5" minlength="20" maxlength="2000" required></textarea></label>${field('evidence_url','Enlace HTTPS a foto de evidencia (opcional)','','url',false)}<p>Espera la autorización e instrucciones antes de devolver la pieza.</p><button class="primary">Solicitar revisión</button></form></section>`);
 }
 function referrals(){
- if(!S.session){layout('<section class="section"><h1>Programa de referidos RePartes USA</h1><p>Invita a personas nuevas mediante un enlace personal. Por ahora no hay dinero, puntos ni descuentos prometidos por las invitaciones.</p><a class="primary" href="#login">Crear una cuenta</a></section>');return}
+ if(!S.session){layout('<section class="section"><h1>Programa de referidos RePartes USA</h1><p>Invita a personas nuevas mediante un enlace personal. Por ahora no hay dinero, puntos ni descuentos prometidos por las invitaciones.</p><a class="primary" href="#login/signup">Crear una cuenta</a></section>');return}
  const r=S.referrals||{code:'',invites:0,qualified:0,recent:[]};
  layout(`<section class="section"><div class="eyebrow">INVITA Y COMPARTE</div><h1>Mi enlace de referidos</h1><p>Invita a nuevos usuarios y consulta sus registros y compras verificadas. Los referidos no generan pagos ni bonificaciones automáticas.</p><div class="metrics"><article class="metric"><small>Invitados registrados</small><strong>${esc(r.invites)}</strong></article><article class="metric"><small>Invitados con compra</small><strong>${esc(r.qualified)}</strong></article></div><div class="panel"><h2>Tu enlace personal</h2><input readonly aria-label="Enlace de referidos" value="${esc(refUrl())}"><button class="primary" data-act="copyref">Copiar enlace</button><p>No hay recompensa económica activa.</p></div><h2>Invitaciones recientes</h2>${table(['Fecha','Estado'],(r.recent||[]).map(x=>`<tr><td>${date(x.date)}</td><td>${x.qualified?'Compra confirmada':'Registrado'}</td></tr>`).join(''))}</section>`);
 }
@@ -596,7 +605,7 @@ document.addEventListener('submit',async ev=>{
   if(f.id==='socialsettings'){const links={};for(const [k] of SOCIAL_NETWORKS)links[k]=String(v[k]||'').trim();await api('admin.socials','POST',{links});toast('Official social links saved.');await refreshCatalog()}
   if(f.id==='review'){await api('review.submit','POST',{subject:f.dataset.subject,order_id:f.dataset.id,...v,rating:Number(v.rating)});toast('Review submitted. It will appear after moderation.');location.hash=f.dataset.subject==='website'?'#home':'#orders'}
   if(f.id==='signin'){const destination=marketplaceRoute()[0]==='sell'?'#sell':'#home';const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;if(isOwnerPage)await refreshIdentity();else location.hash=destination}
-  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session&&marketplaceRoute()[0]!=='sell')location.hash='#home'}
+  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash=marketplaceRoute()[0]==='sell'?'#sell':'#home'}
   if(f.id==='seller'){const r=await api('seller.apply','POST',v);await refreshIdentity();toast(r.owner_store?'Your own store is ready. Upload original photos of your parts.':'Application submitted for review.')}
   if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('Solicitud enviada a revisión');location.hash='#orders'}
   if(f.id==='listing'){
