@@ -4,6 +4,7 @@ import {randomBytes} from 'node:crypto';
 import {handleCheckoutTest} from '../lib/checkout-tests.mjs';
 import {submitPartRequest} from '../lib/part-requests.mjs';
 import {prepareQuotePhotos,readPartQuotes,savePartQuote,withdrawPartQuote} from '../lib/part-quotes.mjs';
+import {recordAnalytics,reportDays} from '../lib/website-analytics.mjs';
 import {supplierConfiguration} from '../lib/partner-inventory.mjs';
 import {canRequestReturn,canDispatchReturn,normalReferralCode,daysAfter,genuineSellerPhoto} from './store-rules.mjs';
 const SITE=()=>process.env.SITE_URL?.replace(/\/$/,'')||'http://localhost:8888';
@@ -16,7 +17,18 @@ export async function handler(event){
  try{
   if(!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.SUPABASE_URL)fail('Falta configuración privada de Supabase.',503);
   const d=db(),method=event.httpMethod,action=new URLSearchParams(event.queryStringParameters||{}).get('action')||'site';
-  let body={};if(method==='POST'){if(action!=='quote.compare')checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
+  if(action==='analytics.event'&&(!event.body||event.body.length>1200))fail('Invalid analytics payload.');
+  let body={};if(method==='POST'){if(!['quote.compare','analytics.event'].includes(action))checkOrigin(event);try{body=JSON.parse(event.body||'{}');}catch{fail('JSON inválido.');}}
+  if(method==='POST'&&action==='analytics.event'){
+   if((event.headers['sec-fetch-site']||event.headers['Sec-Fetch-Site'])!=='same-origin')checkOrigin(event);
+   await recordAnalytics(body,event.headers['user-agent']||event.headers['User-Agent'],d);
+   return respond({ok:true});
+  }
+  if(method==='GET'&&action==='analytics.report'){
+   await auth(event,d,{owner:true});
+   const days=reportDays(event.queryStringParameters?.days);
+   return respond(unwrap(await d.rpc('owner_website_analytics',{report_days:days})));
+  }
   if(method==='POST'&&action==='quote.compare')return respond(await readPartQuotes(body?.token,d));
   if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));
   if(method==='GET'&&action==='supplier-status'){

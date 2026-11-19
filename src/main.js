@@ -3,6 +3,7 @@ import {money} from './money.js';
 import {reviewList,reviewForm,stars} from './reviews-ui.js';
 import {LANGUAGES,getLanguage,setLanguage,localize} from './i18n.js';
 import './styles.css';
+import {mountOwnerAnalytics} from './owner-analytics.js';
 import {mountPartRequests} from './part-request.js';
 import {ownerQuoteTools,quoteComparison,quotePath,renderQuotePage,submitOwnerQuote} from './part-quotes.js';
 import {matchesPartNumber,matchesSearch,normalizePartNumber,publishedOffers} from './catalog-search.js';
@@ -40,7 +41,7 @@ function commercialOffers(placement){
  const offers=Array.isArray(S.site?.settings?.monetization_offers)?S.site.settings.monetization_offers:[];
  const shown=offers.filter(x=>x&&x.placement===placement&&['affiliate','sponsored'].includes(x.kind)&&/^https:\/\//.test(x.url||''));
  if(!shown.length)return '';
- return '<section class="section offers"><div class="eyebrow">Commercial partners</div><h2>Useful links from partners</h2><p>Paid advertising and affiliate links are identified. RePartes USA may earn a commission from qualifying purchases made through affiliate links, at no extra charge to you. External providers set their own prices and terms.</p><div class="offer-grid">'+shown.map(x=>'<article class="offer-card"><div class="offer-kind">'+(x.kind==='affiliate'?'Affiliate link':'Sponsored placement')+'</div><h3>'+esc(x.title)+'</h3><p>'+esc(x.description)+'</p><a class="secondary" href="'+esc(x.url)+'" target="_blank" rel="sponsored nofollow noopener noreferrer">Visit partner website ↗</a></article>').join('')+'</div></section>';
+ return '<section class="section offers"><div class="eyebrow">Commercial partners</div><h2>Useful links from partners</h2><p>Paid advertising and affiliate links are identified. RePartes USA may earn a commission from qualifying purchases made through affiliate links, at no extra charge to you. External providers set their own prices and terms.</p><div class="offer-grid">'+shown.map(x=>'<article class="offer-card"><div class="offer-kind">'+(x.kind==='affiliate'?'Affiliate link':'Sponsored placement')+'</div><h3>'+esc(x.title)+'</h3><p>'+esc(x.description)+'</p><a class="secondary" href="'+esc(x.url)+'" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">Visit partner website ↗</a></article>').join('')+'</div></section>';
 }
 // Keep the affiliate offer draft across auth refreshes and mobile tab reloads.
 const OFFER_DRAFT_FIELDS=['kind','placement','title','url','description'];
@@ -112,7 +113,7 @@ async function api(action,method='GET',body){
 }
 const showReviews=()=>S.currentReviews?reviewList(S.currentReviews):'<p>Reviews are temporarily unavailable.</p>';
 const statusBadge=s=>`<span class="pill">${esc(s)}</span>`;
-let partnerSearchTimer,partnerSearchController;
+let partnerSearchTimer,partnerSearchController,lastMeasuredSearch;
 function catalogMatches(){
  const settings=S.site?.settings||{};
  return {
@@ -131,7 +132,7 @@ function catalogResults(){
  const {listings,offers}=catalogMatches();
  if(!listings.length&&!offers.length)return '';
  const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p>${S.searchByNumber?`<p data-no-translate>${esc(x.part_number)}</p>`:''}<strong>${money(x.price_cents)}</strong></div></a>`;
- const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
+ const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
  return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
 }
 function updateCatalogResults(){
@@ -141,7 +142,7 @@ function setPartnerResults(area,markup){
  area.innerHTML=markup;
  localize(area,currentLanguage);
 }
-async function updatePartnerResults(){
+async function updatePartnerResults(trackSearch=false){
  clearTimeout(partnerSearchTimer);
  partnerSearchController?.abort();
  const area=document.getElementById('partner-results');
@@ -151,6 +152,12 @@ async function updatePartnerResults(){
  const byNumber=S.searchByNumber;
  const featured=!byNumber&&q.length===0;
  if(!featured&&(q.length<2||(byNumber&&!normalizePartNumber(q)))){area.innerHTML='';return;}
+ const searchKey=JSON.stringify([q.toLowerCase(),byNumber]);
+ const measured=trackSearch&&!featured&&(lastMeasuredSearch?.key!==searchKey||Date.now()-lastMeasuredSearch.at>5000);
+ if(measured){
+  lastMeasuredSearch={key:searchKey,at:Date.now()};
+  window.repartesAnalytics?.track(byNumber?'oem_search':'search');
+ }
  const heading=featured?'Featured parts from eBay':byNumber?'Part-number search on eBay · Affiliate links':'eBay inventory · Affiliate links';
  setPartnerResults(area,`<h2>${heading}</h2><p>${featured?'Loading featured parts…':'Searching eBay…'}</p>`);
  const controller=new AbortController();
@@ -166,7 +173,13 @@ async function updatePartnerResults(){
   if(data.status!=='connected'||!Array.isArray(data.items))throw Error('supplier');
   if(!data.items.length){
    if(featured)area.innerHTML='';
-   else setPartnerResults(area,S.site&&noCatalogMatches()?emptyResults:'<p>No matching listings on eBay.</p>');
+   else {
+    if(trackSearch&&S.site&&noCatalogMatches()&&lastMeasuredSearch?.key===searchKey&&!lastMeasuredSearch.noResults){
+     lastMeasuredSearch.noResults=true;
+     window.repartesAnalytics?.track('no_results');
+    }
+    setPartnerResults(area,S.site&&noCatalogMatches()?emptyResults:'<p>No matching listings on eBay.</p>');
+   }
    return;
   }
   const cards=data.items.map(x=>`<article class="product ebay-card">
@@ -175,7 +188,7 @@ async function updatePartnerResults(){
     <small><b>eBay</b>${x.condition?' · '+esc(x.condition):''}</small>
     <h3 data-no-translate>${esc(x.title)}</h3>
     <strong>${money(Math.round(x.price*100))}</strong>
-    <a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay</a>
+    <a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank" data-analytics-link="ebay_click">View on eBay</a>
    </div>
   </article>`).join('');
   setPartnerResults(area,`<h2>${heading}</h2>${byNumber?'<p>Confirm the part number in the eBay listing before buying.</p>':''}<p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid ebay-grid">${cards}</div>`);
@@ -312,7 +325,8 @@ function owner(){
  const referralRows=(d.referrals||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.referred_id.slice(0,8))}</td><td>${date(x.created_at)}</td><td>${x.qualified?'Compra confirmada':'Registro'}</td></tr>`).join('');
  const reviewRows=(d.reviews||[]).map(x=>`<tr><td>${x.subject==='part'?'Part — verified buyer':'Website member'}</td><td>${stars(x.rating)}</td><td><b>${esc(x.title)}</b><p>${esc(x.comment)}</p></td><td>${statusBadge(x.status)}</td><td>${x.status==='pending'?actionButton('reviewstatus',x.id,'approved','Approve')+' '+actionButton('reviewstatus',x.id,'rejected','Reject'):'—'}</td></tr>`).join('');
  const users=(d.users||[]).map(x=>`<tr><td>${esc(x.display_name||'Sin nombre')}</td><td>${x.is_banned?'Suspendido':'Activo'}</td><td>${actionButton('userban',x.id,x.is_banned?'unban':'ban',x.is_banned?'Reactivar':'Suspender')}</td></tr>`).join('');
- layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div>${quotePanel}${testPanel}<section class="panel"><h2>External inventory connection</h2><p><strong>${S.supplier?.configured?'Configured — live API verification occurs on search':'Not connected'}</strong></p><p>eBay Browse API integration is prepared. It requires approved production access, eBay Partner Network membership, a campaign ID, and server-side credentials before real inventory can appear.</p><p>Until connected, search uses approved seller listings and your published affiliate offers. Adding a link does not import a supplier catalog.</p><a class="secondary" href="https://partnernetwork.ebay.com/" target="_blank" rel="noopener noreferrer">eBay Partner Network ↗</a></section><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form>${socialForm}${adsPanel}${offersPanel}<h2>Vendedores</h2>${table(['Store','Status','Stripe','Commission','Actions'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<p>Antes de aprobar una pieza, verifica personalmente que el vendedor la tiene, que la foto es real y que el producto está disponible.</p><h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Devoluciones (30 días desde entrega)</h2>${table(['Pedido','Motivo','Descripción','Estado','Seguimiento','Acción'],returnRows)}<h2>Referidos</h2><p>Registros: ${esc(d.referral_stats?.registered||0)} · Compradores: ${esc(d.referral_stats?.qualified||0)} · Recompensas desactivadas.</p>${table(['Código','Cuenta','Fecha','Estado'],referralRows)}<h2>Reviews and ratings</h2><p>Only authentic website feedback and verified buyer part reviews are eligible. Approval is required for public display.</p>${table(['Type','Stars','Review','Status','Action'],reviewRows)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
+ layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div><section class="panel owner-analytics" id="owner-analytics"></section>${quotePanel}${testPanel}<section class="panel"><h2>External inventory connection</h2><p><strong>${S.supplier?.configured?'Configured — live API verification occurs on search':'Not connected'}</strong></p><p>eBay Browse API integration is prepared. It requires approved production access, eBay Partner Network membership, a campaign ID, and server-side credentials before real inventory can appear.</p><p>Until connected, search uses approved seller listings and your published affiliate offers. Adding a link does not import a supplier catalog.</p><a class="secondary" href="https://partnernetwork.ebay.com/" target="_blank" rel="noopener noreferrer">eBay Partner Network ↗</a></section><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form>${socialForm}${adsPanel}${offersPanel}<h2>Vendedores</h2>${table(['Store','Status','Stripe','Commission','Actions'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<p>Antes de aprobar una pieza, verifica personalmente que el vendedor la tiene, que la foto es real y que el producto está disponible.</p><h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Devoluciones (30 días desde entrega)</h2>${table(['Pedido','Motivo','Descripción','Estado','Seguimiento','Acción'],returnRows)}<h2>Referidos</h2><p>Registros: ${esc(d.referral_stats?.registered||0)} · Compradores: ${esc(d.referral_stats?.qualified||0)} · Recompensas desactivadas.</p>${table(['Código','Cuenta','Fecha','Estado'],referralRows)}<h2>Reviews and ratings</h2><p>Only authentic website feedback and verified buyer part reviews are eligible. Approval is required for public display.</p>${table(['Type','Stars','Review','Status','Action'],reviewRows)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
+ mountOwnerAnalytics(document.getElementById('owner-analytics'),{api,language:currentLanguage,esc});
 }
 function publicInfo(kind){
  const email=S.site?.settings?.support_email||'';
@@ -344,6 +358,7 @@ function publicInfo(kind){
    '<h2>Estado actual: pagos desactivados</h2><p>RePartes USA está en prelanzamiento y todavía <strong>no acepta compras ni procesa devoluciones reales</strong>. Esta política ya define el compromiso de 30 días, pero la operación de atención, seguimiento y reembolsos deberá probarse antes de habilitar pagos. Si necesitas información, escribe a %%EMAIL%%.</p>'
   ]},
   privacy:{title:'Aviso de privacidad',sections:[
+   '<h2>Medición del sitio</h2><p>Medimos visitas, tipos de página, acciones y origen general del tráfico con un identificador aleatorio guardado en la pestaña. La medición guarda el tipo de dispositivo y la hora, sin guardar direcciones IP, términos escritos en el buscador, datos de cuenta ni enlaces privados en los registros de Analytics. El sistema respeta Global Privacy Control y Do Not Track. Los registros de tráfico se conservan hasta 120 días, con limpieza diaria.</p>',
    '<h2>Part requests</h2><p>When you request a part, we store your vehicle details, requested part, name, email, optional ZIP code and optional phone so RePartes USA can review and respond to your inquiry. These requests are private to the Owner. Unfinished forms are saved on your device for up to 7 days and can be cleared using Clear saved draft. A request is not an order and does not guarantee availability or compatibility.</p>',
    '<h2>Información tratada por la plataforma</h2><p>Para operar las cuentas, anuncios y posibles compras, el servicio puede tratar datos proporcionados por los usuarios como correo electrónico, nombre de perfil, detalles de piezas, datos de envío y seguimiento, así como registros técnicos y de seguridad necesarios para prestar el servicio.</p>',
    '<h2>Proveedores tecnológicos</h2><p>El servicio utiliza Supabase para cuentas y datos de la plataforma y Netlify para alojar el sitio y las funciones del servidor. Cuando se activen pagos, Stripe gestionará el procesamiento de las transacciones. RePartes USA no solicita que los compradores escriban el número completo de su tarjeta en formularios propios.</p>',
@@ -371,7 +386,10 @@ async function route(){
   render('<h1>Loading quotes…</h1>');
   try{
    const result=await api('quote.compare','POST',{token:location.hash.slice(1)});
-   if(version===current)render(quoteComparison(result,esc));
+   if(version===current){
+    render(quoteComparison(result,esc));
+    window.repartesAnalytics?.quoteOpened();
+   }
   }catch{
    if(version===current)render('<h1>This quote link is unavailable.</h1><p>Check the link and try again.</p><button data-act="retry">Reintentar</button>');
   }
@@ -484,7 +502,7 @@ document.addEventListener('input',ev=>{if(ev.target.id==='search'){
  S.q=ev.target.value;updateCatalogResults();clearTimeout(partnerSearchTimer);partnerSearchController?.abort();
  const area=document.getElementById('partner-results');if(area)area.innerHTML='';
  const length=S.q.trim().length;
- if(length===0||length>=2)partnerSearchTimer=setTimeout(updatePartnerResults,650);
+ if(length===0||length>=2)partnerSearchTimer=setTimeout(()=>updatePartnerResults(true),650);
 }});
 function setPartNumberMode(byNumber){
  S.searchByNumber=byNumber;
@@ -500,16 +518,16 @@ document.addEventListener('click',ev=>{
  if(mode){
   setPartNumberMode(!S.searchByNumber);
   updateCatalogResults();
-  updatePartnerResults();
+  updatePartnerResults(true);
   document.getElementById('search').focus();
   return;
  }
  const button=ev.target.closest('[data-search-term]');if(!button)return;
  setPartNumberMode(false);
  S.q=button.dataset.searchTerm;document.getElementById('search').value=S.q;
- updateCatalogResults();updatePartnerResults();document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});
+ updateCatalogResults();updatePartnerResults(true);document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});
 });
-document.addEventListener('submit',ev=>{if(ev.target.id!=='part-search')return;ev.preventDefault();S.q=document.getElementById('search').value;updateCatalogResults();updatePartnerResults();document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});});
+document.addEventListener('submit',ev=>{if(ev.target.id!=='part-search')return;ev.preventDefault();S.q=document.getElementById('search').value;updateCatalogResults();updatePartnerResults(true);document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});});
 document.addEventListener('submit',async ev=>{
  const form=ev.target;
  if(!form.matches('[data-quote-form]'))return;
