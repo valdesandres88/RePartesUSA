@@ -5,6 +5,13 @@ test('Part request requires usable vehicle/contact details and explicit consent'
  assert.equal(validatePartRequest(valid).email,'test@example.com');
  for(const patch of [{vehicle_year:1800},{vehicle_year:2011.5},{vehicle_year:2100},{make:''},{part:'x'},{contact_name:''},{email:'invalid'},{phone:'bad phone'},{consent:false},{id:'invalid'}])assert.throws(()=>validatePartRequest({...valid,...patch}));
 });
+test('Optional ZIP is normalized and preserves leading zeroes',()=>{
+ assert.equal(validatePartRequest({...valid,zip_code:' 02108 '}).zip_code,'02108');
+ assert.equal(validatePartRequest(valid).zip_code,null);
+ for(const zip_code of ['123456','1234','12x45',12345]){
+  assert.throws(()=>validatePartRequest({...valid,zip_code}),/five-digit ZIP code/);
+ }
+});
 test('Bot honeypot returns no request data',()=>assert.equal(validatePartRequest({...valid,website:'spam'}),null));
 function db({existing=false,recent=0}={}){
  let inserted;

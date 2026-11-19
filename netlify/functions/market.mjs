@@ -23,7 +23,7 @@ export async function handler(event){
   }
   if(method==='GET'&&action==='part-requests'){
    await auth(event,d,{owner:true});
-   return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,status,created_at').order('created_at',{ascending:false}).limit(100))});
+   return respond({requests:unwrap(await d.from('part_requests').select('id,vehicle_year,make,model,part,details,contact_name,email,phone,zip_code,status,created_at').order('created_at',{ascending:false}).limit(100))});
   }
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([

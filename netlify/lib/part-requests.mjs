@@ -4,12 +4,14 @@ const unwrap=r=>{if(r.error)throw r.error;return r.data;};
 export function validatePartRequest(body,year=new Date().getFullYear()){
  if(body.website)return null;
  const id=clean(body.id,40),vehicle_year=Number(body.vehicle_year),make=clean(body.make,60),model=clean(body.model,80),part=clean(body.part,150),details=clean(body.details,1000),contact_name=clean(body.contact_name,80),email=clean(body.email,254).toLowerCase(),phone=clean(body.phone,40);
+ const zip_code=typeof body.zip_code==='string'?body.zip_code.trim():body.zip_code??'';
+ if(typeof zip_code!=='string'||(zip_code&&!/^[0-9]{5}$/.test(zip_code)))fail('Enter a five-digit ZIP code or leave it empty.');
  if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id))fail('Please reopen the request form and try again.');
  if(!Number.isInteger(vehicle_year)||vehicle_year<1950||vehicle_year>year+1||make.length<2||model.length<1)fail('Enter the vehicle year, make and model.');
  if(part.length<3||contact_name.length<2||!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email))fail('Enter the part needed, your name and a valid email address.');
  if(phone&&!/^[+()\d\s.\-]{7,40}$/.test(phone))fail('Enter a valid phone number or leave it empty.');
  if(body.consent!==true)fail('Please agree to be contacted about your request.');
- return {id,vehicle_year,make,model,part,details,contact_name,email,phone,consented_at:new Date().toISOString()};
+ return {id,vehicle_year,make,model,part,details,contact_name,email,phone,zip_code:zip_code||null,consented_at:new Date().toISOString()};
 }
 export async function submitPartRequest(body,d){
  const row=validatePartRequest(body);if(!row)return {ok:true};

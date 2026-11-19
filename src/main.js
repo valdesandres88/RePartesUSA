@@ -121,7 +121,7 @@ function noCatalogMatches(){
  const {listings,offers}=catalogMatches();
  return !listings.length&&!offers.length;
 }
-const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part>Request a part</button></div>';
+const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part data-request-from-search>Request a part</button></div>';
 function catalogResults(){
  if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
  const {listings,offers}=catalogMatches();
@@ -177,7 +177,10 @@ async function updatePartnerResults(){
  }catch{
   if(!isCurrent())return;
   const message=featured?'Featured eBay parts are temporarily unavailable.':'eBay search is temporarily unavailable. Try again shortly.';
-  setPartnerResults(area,`<p>${message}</p>`);
+  const requestButton=!featured&&noCatalogMatches()
+   ? '<button class="secondary" data-request-part data-request-from-search>Request a part</button>'
+   : '';
+  setPartnerResults(area,`<p>${message}</p>${requestButton}`);
  }
 }
 
@@ -284,7 +287,7 @@ function owner(){
   return;
  }
  const d=S.admin||{metrics:{},settings:{},sellers:[],listings:[],users:[],orders:[],returns:[],referrals:[],audit:[]},m=d.metrics||{},settings=d.settings||{};
- const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p><p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div></article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
+ const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p>${q.zip_code?`<p><span>ZIP code</span> ${esc(q.zip_code)}</p>`:''}<p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div></article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
  const testState=S.checkoutTest||{},testRecord=testState.record;
  const testPassed=Boolean(testRecord?.paid_webhook_at&&testRecord?.refund_webhook_at&&testRecord?.status==='refunded');
  const testPanel=`<section class="panel"><h2>Payment launch checklist</h2><p>Server environment: <strong>${esc(testState.mode||'disabled')}</strong>. Customer payments: <strong>${settings.payments_enabled?'enabled':'off'}</strong>.</p><h3>Private purchase and refund test</h3><p>This uses $10 in Stripe test funds. No real card or physical inventory is needed. Test records are separate from marketplace sales.</p><p>Status: <strong>${testPassed?'Payment and refund webhooks verified':esc(testRecord?.status||'Not started')}</strong></p><p>Payment webhook: ${testRecord?.paid_webhook_at?'received':'pending'} · Refund webhook: ${testRecord?.refund_webhook_at?'received':'pending'}</p>${testState.mode==='test'&&testState.configured?'<button class="primary" data-act="checkoutteststart">Open private test checkout</button> '+(testRecord?.paid_webhook_at&&!testRecord.refund_webhook_at?'<button data-act="checkouttestrefund">Refund test payment</button> ':''):'<p>Test checkout requires CHECKOUT_MODE=test and a server-side test key.</p>'}<button data-act="retry">Refresh test results</button><h3>Real inventory</h3><p>Only publish parts that a seller actually has, using original photos and accurate compatibility, condition and price.</p><a href="/#sell">Submit a real part</a></section>`;
@@ -335,7 +338,7 @@ function publicInfo(kind){
    '<h2>Estado actual: pagos desactivados</h2><p>RePartes USA está en prelanzamiento y todavía <strong>no acepta compras ni procesa devoluciones reales</strong>. Esta política ya define el compromiso de 30 días, pero la operación de atención, seguimiento y reembolsos deberá probarse antes de habilitar pagos. Si necesitas información, escribe a %%EMAIL%%.</p>'
   ]},
   privacy:{title:'Aviso de privacidad',sections:[
-   '<h2>Part requests</h2><p>When you request a part, we store your vehicle details, requested part, name, email and optional phone so RePartes USA can review and respond to your inquiry. These requests are private to the Owner. Unfinished forms are saved on your device for up to 7 days and can be cleared using Clear saved draft. A request is not an order and does not guarantee availability or compatibility.</p>',
+   '<h2>Part requests</h2><p>When you request a part, we store your vehicle details, requested part, name, email, optional ZIP code and optional phone so RePartes USA can review and respond to your inquiry. These requests are private to the Owner. Unfinished forms are saved on your device for up to 7 days and can be cleared using Clear saved draft. A request is not an order and does not guarantee availability or compatibility.</p>',
    '<h2>Información tratada por la plataforma</h2><p>Para operar las cuentas, anuncios y posibles compras, el servicio puede tratar datos proporcionados por los usuarios como correo electrónico, nombre de perfil, detalles de piezas, datos de envío y seguimiento, así como registros técnicos y de seguridad necesarios para prestar el servicio.</p>',
    '<h2>Proveedores tecnológicos</h2><p>El servicio utiliza Supabase para cuentas y datos de la plataforma y Netlify para alojar el sitio y las funciones del servidor. Cuando se activen pagos, Stripe gestionará el procesamiento de las transacciones. RePartes USA no solicita que los compradores escriban el número completo de su tarjeta en formularios propios.</p>',
    '<h2>Finalidad y solicitudes</h2><p>Los datos se utilizan para administrar el servicio, responder consultas, gestionar transacciones y proteger la integridad de las cuentas. Para consultas sobre datos personales, acceso, correcciones o solicitudes de eliminación, escribe a %%EMAIL%%. Algunas solicitudes pueden estar sujetas a obligaciones de conservación legales o de seguridad.</p>',
@@ -495,7 +498,7 @@ document.addEventListener('submit',async ev=>{
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
 });
 document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
-if(!isOwnerPage)mountPartRequests({submit:data=>api('quote.submit','POST',data)});
+if(!isOwnerPage)mountPartRequests({submit:data=>api('quote.submit','POST',data),getSearchQuery:()=>S.q});
 window.addEventListener('hashchange',route);
 (async()=>{
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
