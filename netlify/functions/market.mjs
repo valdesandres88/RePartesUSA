@@ -27,7 +27,7 @@ export async function handler(event){
   if(method==='GET'&&action==='analytics.report'){
    await auth(event,d,{owner:true});
    const days=reportDays(event.queryStringParameters?.days);
-   return respond(unwrap(await d.rpc('owner_website_analytics',{report_days:days})));
+   return respond(unwrap(await d.rpc('owner_live_website_analytics',{report_days:days})));
   }
   if(method==='POST'&&action==='quote.compare')return respond(await readPartQuotes(body?.token,d));
   if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));

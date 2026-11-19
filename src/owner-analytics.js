@@ -16,6 +16,15 @@ const sourceLabels={
  pinterest:['Pinterest','Pinterest'],reddit:['Reddit','Reddit'],email:['Email','Correo'],other:['Other websites','Otros sitios web']
 };
 const deviceLabels={mobile:['Phone or tablet','Teléfono o tableta'],desktop:['Computer','Computadora']};
+const activityLabels={
+ view:['Page viewed','Página vista'],search:['Search','Búsqueda'],oem_search:['OEM search','Búsqueda OEM'],
+ no_results:['No matching parts','Sin coincidencias'],ebay_click:['eBay click','Clic hacia eBay'],
+ partner_click:['Partner link click','Clic hacia un socio'],quote_open:['Quote link opened','Enlace de cotización abierto'],
+ part_request:['Part request submitted','Solicitud de pieza recibida'],quote_created:['Quote created','Cotización creada'],
+ registration:['Account created','Cuenta creada'],sale:['Sale confirmed','Venta confirmada']
+};
+const refreshInterval=10000;
+
 
 export function mountOwnerAnalytics(root,{api,language,esc}){
  if(!root)return;
@@ -23,23 +32,45 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
  const locale=spanish?'es-US':'en-US';
  const fmt=n=>new Intl.NumberFormat(locale).format(Number(n)||0);
  const date=new Intl.DateTimeFormat(locale,{month:'short',day:'numeric',timeZone:'UTC'});
+ const clock=new Intl.DateTimeFormat(locale,{hour:'numeric',minute:'2-digit',second:'2-digit',timeZone:'America/New_York'});
  const label=(items,key)=>items[key]?.[spanish?1:0]||'';
  const rangeKey='repartes:analytics-range';
  let saved='7';
  try{saved=sessionStorage.getItem(rangeKey)||'7';}catch{}
  root.innerHTML=`<div class="analytics-heading">
-   <h2>Analytics</h2>
+   <div class="analytics-title"><h2>Analytics</h2><span class="analytics-live-badge" data-analytics-live></span></div>
    <div class="analytics-controls"><label>${text('Period','Período')}
     <select data-analytics-range>${[7,30,90].map(days=>`<option value="${days}" ${String(days)===saved?'selected':''}>${text('Last '+days+' days','Últimos '+days+' días')}</option>`).join('')}</select>
    </label><button type="button" data-analytics-refresh>${text('Refresh','Actualizar')}</button></div>
   </div>
   <p class="analytics-caption">${text('Miami time. A visit is a browser-tab session that resets after 30 minutes of inactivity. Web traffic starts counting from activation.','Hora de Miami. Una visita es una sesión por pestaña que se reinicia después de 30 minutos de inactividad. El tráfico se cuenta desde que se activó la medición.')}</p>
-  <p data-analytics-status role="status" hidden></p><div data-analytics-content></div>`;
+  <p class="analytics-caption"><span data-analytics-updated></span> ${text('Updates automatically every 10 seconds while this tab is visible.','Se actualiza cada 10 segundos mientras esta pestaña está visible.')}</p>
+  <p data-analytics-status role="status" hidden></p>
+  <section class="analytics-live-panel" data-analytics-recent hidden></section>
+  <div data-analytics-content></div>`;
 
  const picker=root.querySelector('[data-analytics-range]');
  const refresh=root.querySelector('[data-analytics-refresh]');
  const status=root.querySelector('[data-analytics-status]');
  const content=root.querySelector('[data-analytics-content]');
+ const livePanel=root.querySelector('[data-analytics-recent]');
+ const badge=root.querySelector('[data-analytics-live]');
+ const updated=root.querySelector('[data-analytics-updated]');
+
+ function renderLive(data){
+  livePanel.hidden=false;
+  livePanel.innerHTML=`<div class="analytics-presence">
+   <strong>${fmt(data.active_sessions)}</strong>
+   <div><h3>${text('Active sessions','Sesiones activas')}</h3><p>${text('Activity in the last 5 minutes','Con actividad en los últimos 5 minutos')}</p></div>
+  </div>
+  <div class="analytics-feed"><h3>${text('Recent activity','Actividad reciente')}</h3>
+   ${data.recent.length?`<ol>${data.recent.map(activity=>{
+    const details=[label(pageLabels,activity.page),label(sourceLabels,activity.source)].filter(Boolean);
+    return `<li><div><strong>${esc(label(activityLabels,activity.kind))}</strong>${details.length?`<span>${esc(details.join(' · '))}</span>`:''}</div>
+     <time datetime="${esc(activity.occurred_at)}">${clock.format(new Date(activity.occurred_at))}</time></li>`;
+   }).join('')}</ol>`:`<p>${text('No events in the last 15 minutes.','Sin eventos en los últimos 15 minutos.')}</p>`}
+  </div>`;
+ }
 
  function rows(title,entries){
   return `<section class="analytics-list"><h3>${title}</h3>${entries.length?
@@ -47,6 +78,9 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
    `<p>${text('No activity in this period.','Sin actividad en este período.')}</p>`}</section>`;
  }
  function render(data){
+  const wasExpanded=Boolean(content.querySelector('details')?.open);
+  const summaryWasFocused=content.querySelector('summary')===document.activeElement;
+  const plotScroll=content.querySelector('.analytics-plot')?.scrollLeft||0;
   const a=data.activity;
   const cards=[
    [text('Visits','Visitas'),fmt(data.visits)], [text('Page views','Páginas vistas'),fmt(data.views)],
@@ -85,33 +119,84 @@ export function mountOwnerAnalytics(root,{api,language,esc}){
     ${rows(text('Search and quote activity','Actividad de búsqueda y cotizaciones'),attribution)}
    </div>
    <p class="analytics-caption">${text('Gross marketplace commission','Comisión bruta del marketplace')} <strong>${money(data.sales.fee_cents)}</strong></p>`;
+  const daily=content.querySelector('details');
+  if(daily)daily.open=wasExpanded;
+  if(summaryWasFocused)content.querySelector('summary')?.focus({preventScroll:true});
+  const plot=content.querySelector('.analytics-plot');
+  if(plot)plot.scrollLeft=plotScroll;
  }
 
- let request=0;
+ let timer,pending,metricsSnapshot,recentSnapshot;
+
+ function connection(state,en,es){
+  badge.dataset.state=state;
+  badge.textContent=text(en,es);
+ }
+ function pause(){
+  clearTimeout(timer);
+  const current=pending;
+  pending=undefined;
+  current?.abort();
+ }
  async function load(){
-  const current=++request;
-  const days=picker.value;
-  status.hidden=false;
-  status.textContent=text('Loading analytics…','Cargando métricas…');
-  content.setAttribute('aria-busy','true');
+  if(!root.isConnected||document.hidden||pending)return;
+  clearTimeout(timer);
+  const current=new AbortController();
+  pending=current;
+  const timeout=setTimeout(()=>current.abort(),15000);
+  if(metricsSnapshot===undefined){
+   connection('connecting','Connecting','Conectando');
+   status.hidden=false;
+   status.textContent=text('Loading analytics…','Cargando métricas…');
+  }
   try{
-   const report=await api('analytics.report','GET',{days});
-   if(current!==request||!root.isConnected)return;
-   render(report);
+   const {live,...metrics}=await api('analytics.report','GET',{days:picker.value},{signal:current.signal});
+   if(pending!==current||!root.isConnected)return;
+   const nextMetrics=JSON.stringify(metrics);
+   if(metricsSnapshot!==nextMetrics){
+    render(metrics);
+    metricsSnapshot=nextMetrics;
+   }
+   const {observed_at,...recent}=live;
+   const nextRecent=JSON.stringify(recent);
+   if(recentSnapshot!==nextRecent){
+    renderLive(recent);
+    recentSnapshot=nextRecent;
+   }
+   updated.textContent=text('Last update','Última actualización')+' '+clock.format(new Date(observed_at))+'.';
+   connection('live','Live','En vivo');
    status.hidden=true;
   }catch{
-   if(current!==request||!root.isConnected)return;
-   content.replaceChildren();
-   status.textContent=text('Analytics could not load. Tap Refresh to retry.','No se pudieron cargar las métricas. Toca Actualizar para volver a intentar.');
+   if(pending!==current||!root.isConnected)return;
+   connection('retrying','Reconnecting','Reconectando');
+   status.hidden=false;
+   status.textContent=text('Analytics are reconnecting.','Reconectando Analytics.');
   }finally{
-   if(current===request)content.removeAttribute('aria-busy');
+   clearTimeout(timeout);
+   if(pending===current){
+    pending=undefined;
+    if(root.isConnected&&!document.hidden)timer=setTimeout(load,refreshInterval);
+   }
   }
+ }
+ function visibility(){
+  if(document.hidden){
+   pause();
+   connection('paused','Paused','En pausa');
+  }else void load();
  }
  picker.addEventListener('change',()=>{
   try{sessionStorage.setItem(rangeKey,picker.value);}catch{}
+  pause();
+  metricsSnapshot=undefined;
   content.replaceChildren();
   void load();
  });
  refresh.addEventListener('click',load);
- void load();
+ document.addEventListener('visibilitychange',visibility);
+ visibility();
+ return ()=>{
+  pause();
+  document.removeEventListener('visibilitychange',visibility);
+ };
 }
