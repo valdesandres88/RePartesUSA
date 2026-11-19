@@ -230,6 +230,7 @@ function home(){
     </div>
    </div>
   </section>
+  <aside class="section seller-invite"><div><h2>Have auto parts to sell?</h2><p>Apply for a seller account, then list your parts with original photos, prices and vehicle details. Listings are reviewed before publication.</p></div><a class="primary" href="#sell">Sell your parts</a></aside>
   <section class="section shop-catalog" id="catalog" aria-label="${currentLanguage==='es'?'Catálogo de piezas':'Parts catalog'}">
    <div id="partner-results" aria-live="polite"></div>
    <div id="catalog-results">${catalogResults()}</div>
@@ -271,7 +272,7 @@ function reviewOrder(id){
 }
 const authWall='<section class="section empty">Inicia sesión para continuar. <a href="#login">Entrar</a></section>';
 function sell(){
- if(!S.session){layout(authWall);return}
+ if(!S.session){login();return}
  const seller=S.me?.seller,m=S.mine||{listings:[],sales:[]};
  const apply=`<form id="seller" class="panel"><h2>${S.me?.is_owner?'Create my own store':'Solicitar cuenta de vendedor'}</h2>${S.me?.is_owner?'<p>Your own sales settle through the main Stripe account. No extra Express account or internal commission.</p>':''}${field('shop_name','Nombre de la tienda',S.me?.is_owner?'RePartes USA Official Parts':'')}<button class="primary">${S.me?.is_owner?'Create my own store':'Solicitar revisión'}</button></form>`;
  const publish=`<form class="panel" id="listing"><h2>Publicar pieza</h2><p>Todos los anuncios requieren aprobación del Owner.</p>${field('title','Nombre de la pieza')}${field('make','Marca del auto')}${field('model','Modelo del auto')}${field('year_min','Año desde','2010','number')}${field('year_max','Año hasta','2020','number')}${field('part_number','Número de pieza','','text',false)}${field('price','Precio USD, envío incluido','49.99')}<label>Condición<select name="condition"><option value="used">Usada</option><option value="remanufactured">Remanufacturada</option><option value="new">Nueva</option></select></label><label>Fotografía original de la pieza (JPG, PNG o WebP, hasta 5 MB)<input name="part_photo" type="file" accept="image/jpeg,image/png,image/webp"></label><input name="image_url" type="hidden"><p>Sube la foto auténtica de tu artículo, tomada con tu teléfono. No se permiten imágenes de catálogo, IA ni artículos que no tengas.</p><label class="check"><input type="checkbox" name="seller_has_item" required> Confirmo que tengo físicamente esta pieza, lista para enviar.</label><label class="check"><input type="checkbox" name="original_photo_attested" required> Confirmo que la foto es original y corresponde exactamente al artículo.</label><label>Descripción<textarea name="description" rows="5" required></textarea></label><h3>Seller contact (optional)</h3><p>Publish business contact details only if you want buyers to see them. Never use private personal details.</p>${field('contact_email','Business email (optional)','','email',false)}${field('contact_phone','Business phone (optional)','','tel',false)}<label class="check"><input type="checkbox" name="public_contact_enabled"> I agree to show this contact information publicly on my part listing.</label><button class="primary">Enviar para aprobación</button></form>`;
@@ -573,8 +574,8 @@ document.addEventListener('submit',async ev=>{
   }
   if(f.id==='socialsettings'){const links={};for(const [k] of SOCIAL_NETWORKS)links[k]=String(v[k]||'').trim();await api('admin.socials','POST',{links});toast('Official social links saved.');await refreshCatalog()}
   if(f.id==='review'){await api('review.submit','POST',{subject:f.dataset.subject,order_id:f.dataset.id,...v,rating:Number(v.rating)});toast('Review submitted. It will appear after moderation.');location.hash=f.dataset.subject==='website'?'#home':'#orders'}
-  if(f.id==='signin'){const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;if(isOwnerPage)await refreshIdentity();else location.hash='#home'}
-  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash='#home'}
+  if(f.id==='signin'){const destination=marketplaceRoute()[0]==='sell'?'#sell':'#home';const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;if(isOwnerPage)await refreshIdentity();else location.hash=destination}
+  if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session&&marketplaceRoute()[0]!=='sell')location.hash='#home'}
   if(f.id==='seller'){const r=await api('seller.apply','POST',v);await refreshIdentity();toast(r.owner_store?'Your own store is ready. Upload original photos of your parts.':'Application submitted for review.')}
   if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('Solicitud enviada a revisión');location.hash='#orders'}
   if(f.id==='listing'){

@@ -192,3 +192,7 @@
 .local-map summary{cursor:pointer;font-size:1.2rem;font-weight:700}
 .local-map form{display:grid;gap:10px;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));margin:18px 0;align-items:end}
 .local-map iframe{width:100%;height:clamp(320px,55vh,550px);border:0;border-radius:12px;background:#edf2ed;margin-bottom:12px}
+
+.seller-invite{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:14px;padding-block:20px;border-bottom:1px solid var(--line)}
+.seller-invite h2,.seller-invite p{margin:0}
+.seller-invite p{margin-top:5px;max-width:65ch}
