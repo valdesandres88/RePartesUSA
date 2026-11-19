@@ -103,6 +103,17 @@ export async function handler(event){
    const record=unwrap(await d.from('checkout_tests').select('id,status,paid_webhook_at,refund_webhook_at,created_at').order('created_at',{ascending:false}).limit(1).maybeSingle());
    return respond({mode:checkoutMode(),configured:checkoutReady(),record});
   }
+  if(method==='GET'&&action==='owner.user'){
+   await auth(event,d,{owner:true});
+   const id=event.queryStringParameters?.id||'';
+   if(!/^[0-9a-f]{8}(?:-[0-9a-f]{4}){3}-[0-9a-f]{12}$/i.test(id))fail('Invalid account ID.');
+   const profile=unwrap(await d.from('profiles').select('display_name,is_banned,created_at').eq('id',id).maybeSingle());
+   if(!profile)fail('Account not found.',404);
+   const account=unwrap(await d.auth.admin.getUserById(id)).user;
+   const shop=unwrap(await d.from('sellers').select('shop_name,status').eq('user_id',id).maybeSingle());
+   return respond({name:profile.display_name,email:account.email,emailConfirmed:Boolean(account.email_confirmed_at),
+    joined:account.created_at||profile.created_at,lastSignIn:account.last_sign_in_at,suspended:profile.is_banned,shop});
+  }
   if(method==='GET'&&action==='dashboard'){
    await auth(event,d,{owner:true});
    const [metrics,listings,sellers,orders,users,settings,audits]=await Promise.all([

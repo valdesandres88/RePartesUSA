@@ -306,6 +306,26 @@ function referrals(){
  const r=S.referrals||{code:'',invites:0,qualified:0,recent:[]};
  layout(`<section class="section"><div class="eyebrow">INVITA Y COMPARTE</div><h1>Mi enlace de referidos</h1><p>Invita a nuevos usuarios y consulta sus registros y compras verificadas. Los referidos no generan pagos ni bonificaciones automáticas.</p><div class="metrics"><article class="metric"><small>Invitados registrados</small><strong>${esc(r.invites)}</strong></article><article class="metric"><small>Invitados con compra</small><strong>${esc(r.qualified)}</strong></article></div><div class="panel"><h2>Tu enlace personal</h2><input readonly aria-label="Enlace de referidos" value="${esc(refUrl())}"><button class="primary" data-act="copyref">Copiar enlace</button><p>No hay recompensa económica activa.</p></div><h2>Invitaciones recientes</h2>${table(['Fecha','Estado'],(r.recent||[]).map(x=>`<tr><td>${date(x.date)}</td><td>${x.qualified?'Compra confirmada':'Registrado'}</td></tr>`).join(''))}</section>`);
 }
+async function showOwnerUser(id){
+ const dialog=document.createElement('dialog');
+ dialog.className='panel';
+ dialog.style.cssText='width:min(30rem,92vw);max-height:85vh;overflow:auto;margin:auto;overflow-wrap:anywhere';
+ dialog.setAttribute('aria-labelledby','registered-user-title');
+ dialog.innerHTML='<h2 id="registered-user-title">Registered user</h2><div aria-live="polite">Loading account details…</div><form method="dialog"><button type="submit" autofocus>Close</button></form>';
+ app.append(dialog);
+ dialog.addEventListener('close',()=>dialog.remove(),{once:true});
+ dialog.showModal();
+ const content=dialog.querySelector('[aria-live]');
+ try{
+  const u=await api('owner.user','GET',{id});
+  if(!dialog.isConnected)return;
+  const date=value=>value?new Date(value).toLocaleString('en-US'):null;
+  const rows=[['Display name',u.name],['Email',u.email],['Email confirmed',u.emailConfirmed?'Yes':'No'],
+   ['Account status',u.suspended?'Suspended':'Active'],['Registered',date(u.joined)],['Last sign-in',date(u.lastSignIn)||'No sign-in recorded']];
+  if(u.shop)rows.push(['Shop name',u.shop.shop_name],['Seller status',u.shop.status]);
+  content.innerHTML='<dl>'+rows.map(([label,value])=>`<dt><strong>${label}</strong></dt><dd>${esc(value||'Not provided')}</dd>`).join('')+'</dl>';
+ }catch{content.textContent='Account details could not be loaded. Close this window and try again.'}
+}
 const actionButton=(type,id,status,label)=>`<button data-act="${type}" data-id="${esc(id)}" data-status="${esc(status)}">${esc(label)}</button>`;
 function owner(){
  if(!S.me?.is_owner){
@@ -336,7 +356,7 @@ function owner(){
  const returnRows=(d.returns||[]).map(x=>`<tr><td>${esc(x.order_id.slice(0,8))}</td><td>${esc(x.reason)}</td><td>${esc(x.details.slice(0,180))} ${x.evidence_url?'<a href="'+esc(x.evidence_url)+'" target="_blank" rel="noopener noreferrer">Foto</a>':''}</td><td>${statusBadge(x.status)}</td><td>${esc(x.return_tracking||'—')}</td><td>${x.status==='requested'?actionButton('returnstatus',x.id,'approved','Aprobar')+' '+actionButton('returnstatus',x.id,'rejected','Rechazar'):['approved','in_transit'].includes(x.status)?actionButton('returnstatus',x.id,'received','Marcar recibida'):x.status==='received'?actionButton('refund',x.order_id,'','Reembolsar vía Stripe'):'—'}</td></tr>`).join('');
  const referralRows=(d.referrals||[]).map(x=>`<tr><td>${esc(x.code)}</td><td>${esc(x.referred_id.slice(0,8))}</td><td>${date(x.created_at)}</td><td>${x.qualified?'Compra confirmada':'Registro'}</td></tr>`).join('');
  const reviewRows=(d.reviews||[]).map(x=>`<tr><td>${x.subject==='part'?'Part — verified buyer':'Website member'}</td><td>${stars(x.rating)}</td><td><b>${esc(x.title)}</b><p>${esc(x.comment)}</p></td><td>${statusBadge(x.status)}</td><td>${x.status==='pending'?actionButton('reviewstatus',x.id,'approved','Approve')+' '+actionButton('reviewstatus',x.id,'rejected','Reject'):'—'}</td></tr>`).join('');
- const users=(d.users||[]).map(x=>`<tr><td>${esc(x.display_name||'Sin nombre')}</td><td>${x.is_banned?'Suspendido':'Activo'}</td><td>${actionButton('userban',x.id,x.is_banned?'unban':'ban',x.is_banned?'Reactivar':'Suspender')}</td></tr>`).join('');
+ const users=(d.users||[]).map(x=>`<tr><td>${actionButton('userprofile',x.id,'',x.display_name||'View unnamed account')}</td><td>${x.is_banned?'Suspendido':'Activo'}</td><td>${actionButton('userban',x.id,x.is_banned?'unban':'ban',x.is_banned?'Reactivar':'Suspender')}</td></tr>`).join('');
  layout(`<section class="section"><div class="eyebrow">PANEL PRIVADO · CONTROL ADMINISTRATIVO</div><h1>Dashboard Owner</h1><p>Las métricas provienen de órdenes reales; las comisiones no son ganancias netas.</p><div class="metrics">${cards.map(([name,val])=>`<article class="metric"><small>${esc(name)}</small><strong>${esc(val)}</strong></article>`).join('')}</div><section class="panel owner-analytics" id="owner-analytics"></section>${quotePanel}${testPanel}<section class="panel"><h2>External inventory connection</h2><p><strong>${S.supplier?.configured?'Configured — live API verification occurs on search':'Not connected'}</strong></p><p>eBay Browse API integration is prepared. It requires approved production access, eBay Partner Network membership, a campaign ID, and server-side credentials before real inventory can appear.</p><p>Until connected, search uses approved seller listings and your published affiliate offers. Adding a link does not import a supplier catalog.</p><a class="secondary" href="https://partnernetwork.ebay.com/" target="_blank" rel="noopener noreferrer">eBay Partner Network ↗</a></section><form class="panel" id="settings"><h2>Control de la página principal</h2>${field('hero_title','Título',settings.hero_title||'')}${field('hero_subtitle','Subtítulo',settings.hero_subtitle||'')}${field('announcement','Anuncio',settings.announcement||'')}${field('support_email','Correo de soporte',settings.support_email||'','email')}${field('commission_bps','Comisión en puntos base (1500 = 15%)',settings.commission_bps||1500,'number')}<label class="check"><input name="payments_enabled" type="checkbox" ${settings.payments_enabled?'checked':''}> Permitir compras (solo tras verificar Stripe)</label><button class="primary">Guardar configuración</button></form>${socialForm}${adsPanel}${offersPanel}<h2>Vendedores</h2>${table(['Store','Status','Stripe','Commission','Actions'],sellers)}<h2>Moderación de piezas</h2>${table(['Pieza','Precio','Estado','Acciones'],listings)}<p>Antes de aprobar una pieza, verifica personalmente que el vendedor la tiene, que la foto es real y que el producto está disponible.</p><h2>Pedidos y reembolsos</h2>${table(['Pieza','Importe','Comisión','Estado','Acción'],purchases)}<h2>Devoluciones (30 días desde entrega)</h2>${table(['Pedido','Motivo','Descripción','Estado','Seguimiento','Acción'],returnRows)}<h2>Referidos</h2><p>Registros: ${esc(d.referral_stats?.registered||0)} · Compradores: ${esc(d.referral_stats?.qualified||0)} · Recompensas desactivadas.</p>${table(['Código','Cuenta','Fecha','Estado'],referralRows)}<h2>Reviews and ratings</h2><p>Only authentic website feedback and verified buyer part reviews are eligible. Approval is required for public display.</p>${table(['Type','Stars','Review','Status','Action'],reviewRows)}<h2>Usuarios</h2>${table(['Usuario','Estado','Acción'],users)}<h2>Auditoría</h2><div class="panel">${(d.audit||[]).slice(0,30).map(x=>`<p>${esc(x.action)} · ${date(x.created_at)} · ${esc(x.target_id||'')}</p>`).join('')||'Sin eventos registrados'}</div></section>`);
  stopOwnerAnalytics=mountOwnerAnalytics(document.getElementById('owner-analytics'),{api,language:currentLanguage,esc});
 }
@@ -469,6 +489,7 @@ document.addEventListener('click',async ev=>{
    await route();
    return;
   }
+  if(a==='userprofile'){await showOwnerUser(id);return}
   if(a==='quotestatus'){await api('admin.quote.status','POST',{id,status});toast('Part request updated.');await route();return}
   if(a==='checkoutteststart'){const r=await api('admin.checkout-test.start','POST',{});const url=new URL(r.url);if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')throw Error('Unexpected checkout address');location.href=url.href;return}
   if(a==='checkouttestrefund'){await api('admin.checkout-test.refund','POST',{});toast('Test refund requested. Refresh to confirm its webhook.');await route();return}
