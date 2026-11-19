@@ -1,3 +1,4 @@
+import {amazonPartsPage} from './amazon-parts.js';
 import {supportPage} from './support.js';
 import {localMapMarkup,mountLocalMap} from './local-map.js';
 import {createClient} from '@supabase/supabase-js';
@@ -123,7 +124,7 @@ function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute
   return;
  }
  const nav=S.session?'<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a><button data-act="logout">Salir</button>' :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a><a href="#login/signup">Sign up</a>';
- app.innerHTML=`<header class="header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<a href="#contact/support">${currentLanguage==='es'?'Soporte':'Support'}</a>${languageSelector()}</nav></header><div class="page-navigation">${showBack?backButton():''}<button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}<p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></p></footer>`;
+ app.innerHTML=`<header class="header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}<a href="#contact/support">${currentLanguage==='es'?'Soporte':'Support'}</a>${languageSelector()}</nav></header><div class="page-navigation">${showBack?backButton():''}<button type="button" class="request-launcher" data-request-part>Request a part</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="#amazon-parts">Amazon Auto Parts</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}<p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></p></footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
@@ -258,6 +259,7 @@ function home(){
    <div id="catalog-results">${catalogResults()}</div>
   </section>
   ${localMapMarkup(currentLanguage==='es',commercialOffers('map'))}
+  <aside class="section seller-invite"><div><h2>Amazon Auto Parts Guide</h2><p>Explore 50 maintenance and repair categories for 2026 and 2027.</p></div><a class="primary" href="#amazon-parts">Browse Amazon Auto Parts</a></aside>
   <section class="section buyer-section">
    <h2>Auto parts buying guide</h2>
    <p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p>
@@ -497,7 +499,7 @@ async function route(){
   }
   if(version!==current)return;
   if(p==='contact'&&id==='support'){supportPage({layout,language:currentLanguage,email:S.site?.settings?.support_email,esc});return;}
-  if(p==='home'||p==='catalog'||!p)home();else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
+  if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts')amazonPartsPage({layout,esc});else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
  }catch(err){if(version!==current)return;layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
 async function refreshIdentity(){
