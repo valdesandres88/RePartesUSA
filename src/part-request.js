@@ -1,4 +1,4 @@
-const DRAFT_KEY='repartes:part-request:v1',SEEN_KEY='repartes:part-request:seen';
+const DRAFT_KEY='repartes:part-request:v1';
 const fields=['vehicle_year','make','model','part','details','contact_name','email','phone'];
 export function mountPartRequests({submit}){
  const dialog=document.createElement('dialog');dialog.className='part-request-dialog';dialog.setAttribute('aria-labelledby','part-request-title');
@@ -6,11 +6,10 @@ export function mountPartRequests({submit}){
  document.body.append(dialog);const form=dialog.querySelector('form'),status=dialog.querySelector('.request-result');let requestId=crypto.randomUUID(),returnFocus;
  function save(){const values={};for(const name of fields)values[name]=form.elements[name].value;try{localStorage.setItem(DRAFT_KEY,JSON.stringify({savedAt:Date.now(),id:requestId,values}));}catch{}}
  function restore(){try{const d=JSON.parse(localStorage.getItem(DRAFT_KEY)||'null');if(d&&Date.now()-d.savedAt<7*86400000){requestId=d.id||requestId;for(const n of fields)form.elements[n].value=String(d.values?.[n]||'');}else localStorage.removeItem(DRAFT_KEY);}catch{}}
- function seen(){try{sessionStorage.setItem(SEEN_KEY,'1');}catch{}}
- function close(){save();seen();dialog.close();returnFocus?.focus?.();}
- function open(){if(dialog.open)return;returnFocus=document.activeElement;restore();seen();dialog.showModal();}
+ function close(){save();dialog.close();returnFocus?.focus?.();}
+ function open(){if(dialog.open)return;returnFocus=document.activeElement;restore();form.elements.consent.checked=false;dialog.showModal();}
  dialog.querySelector('.request-close').addEventListener('click',close);
- dialog.addEventListener('cancel',()=>{save();seen();});
+ dialog.addEventListener('cancel',save);
  dialog.addEventListener('click',event=>{if(event.target!==dialog)return;const r=dialog.getBoundingClientRect();if(event.clientX<r.left||event.clientX>r.right||event.clientY<r.top||event.clientY>r.bottom)close();});
  form.addEventListener('input',save);window.addEventListener('pagehide',save);
  dialog.querySelector('.request-clear').addEventListener('click',()=>{form.reset();requestId=crypto.randomUUID();try{localStorage.removeItem(DRAFT_KEY);}catch{}status.textContent='Saved draft cleared.';});
@@ -20,5 +19,5 @@ export function mountPartRequests({submit}){
   catch(error){status.textContent=error.message||'Could not send your request. Please try again.';save();}finally{button.disabled=false;}
  });
  document.addEventListener('click',event=>{if(event.target.closest('[data-request-part]'))open();});
- document.addEventListener('repartes:page',()=>{const page=location.hash.replace(/^#\/?/,'').split('/')[0];if(!['','home','catalog'].includes(page)){if(dialog.open)close();return;}let already=false;try{already=sessionStorage.getItem(SEEN_KEY)==='1';}catch{already=true;}if(!already)open();});
+ document.addEventListener('repartes:page',()=>{if(dialog.open)close();});
 }

@@ -13,9 +13,9 @@ const cfg=import.meta.env;
 let currentLanguage=getLanguage();
 const sb=cfg.VITE_SUPABASE_URL&&cfg.VITE_SUPABASE_PUBLISHABLE_KEY?createClient(cfg.VITE_SUPABASE_URL,cfg.VITE_SUPABASE_PUBLISHABLE_KEY):null;
 const S={session:null,me:null,site:null,mine:null,admin:null,referrals:null,q:'',currentReviews:null},app=document.getElementById('app');
-const refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
-if(/^[A-Z0-9]{12}$/.test(refQuery))localStorage.setItem('repartes_referral',refQuery);
-const pendingRef=()=>localStorage.getItem('repartes_referral')||'';
+let refQuery=(new URLSearchParams(location.search).get('ref')||'').trim().toUpperCase();
+if(/^[A-Z0-9]{12}$/.test(refQuery)){try{localStorage.setItem('repartes_referral',refQuery)}catch{}}
+const pendingRef=()=>{try{return localStorage.getItem('repartes_referral')||refQuery}catch{return refQuery}};
 const refUrl=()=>location.origin+location.pathname+'?ref='+encodeURIComponent(S.referrals?.code||'')+'#login';
 async function claimRef(){
  if(!S.session)return;
@@ -23,7 +23,7 @@ async function claimRef(){
  if(!/^[A-Z0-9]{12}$/.test(code))return;
  try{await api('referral.claim','POST',{code});}
  catch(e){console.info('Referido no asociado:',e.message);}
- finally{localStorage.removeItem('repartes_referral');}
+ finally{refQuery='';try{localStorage.removeItem('repartes_referral')}catch{}}
 }
 
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -90,7 +90,7 @@ function layout(inner){
   return;
  }
  const nav=S.session?`<a href="#orders">Mis pedidos</a><a href="#sell">Vender</a><a href="#referrals">Referidos</a>${S.me?.is_owner?`<a class="ownerlink" href="${ownerPath}">Panel Owner</a>`:''}<button data-act="logout">Salir</button>` :'<a href="#referrals">Referidos</a><a href="#login">Iniciar sesión</a>';
- app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes de vendedores independientes en Estados Unidos. Moneda: USD. Las compras todavía no están habilitadas.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/used-auto-parts.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
+ app.innerHTML=`<div class="ribbon">AUTOPARTES USADAS · MARKETPLACE USA</div><header class="header"><a href="#home" class="logo">R<span>↗</span> REPARTES <em>USA</em></a><nav><a href="#home">Explorar piezas</a>${nav}${languageSelector()}</nav></header><div class="page-navigation"><button type="button" data-back-button aria-label="Go back to the previous page">← Back</button><button type="button" class="request-launcher" data-request-part>Need a part? ↗</button></div><main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}</footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
@@ -105,43 +105,70 @@ async function api(action,method='GET',body){
  if(!r.ok)throw Error(data.error||'Error '+r.status);
  return data;
 }
-const showReviews=()=>reviewList(S.currentReviews);
+const showReviews=()=>S.currentReviews?reviewList(S.currentReviews):'<p>Reviews are temporarily unavailable.</p>';
 const statusBadge=s=>`<span class="pill">${esc(s)}</span>`;
 let partnerSearchTimer,partnerSearchController;
+function catalogMatches(){
+ const settings=S.site?.settings||{};
+ return {
+  listings:(S.site?.listings||[]).filter(x=>matchesSearch(x,S.q)),
+  offers:publishedOffers(settings).filter(x=>matchesSearch(x,S.q))
+ };
+}
+function noCatalogMatches(){
+ const {listings,offers}=catalogMatches();
+ return !listings.length&&!offers.length;
+}
+const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part>Request a part</button></div>';
 function catalogResults(){
- const st=S.site?.settings||{},listings=(S.site?.listings||[]).filter(x=>matchesSearch(x,S.q));
- const offers=publishedOffers(st).filter(x=>matchesSearch(x,S.q));
+ if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
+ const {listings,offers}=catalogMatches();
+ if(!listings.length&&!offers.length){
+  return S.q.trim().length<2?'<p>Enter a part name or number to search eBay.</p>':'';
+ }
  const listingCard=x=>`<a class="product" href="#part/${esc(x.id)}"><img src="${esc(x.image_url)}" alt="${esc(x.title)}" loading="lazy"><div><small>Seller listing · ${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)}</small><h3>${esc(x.title)}</h3><p>${esc(x.shop_name)}</p><strong>${money(x.price_cents)}</strong></div></a>`;
  const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
- return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}${!listings.length&&!offers.length?'<div class="empty"><h3>No matching published parts yet.</h3><p>Try the part number, a shorter description, or request help finding it.</p><button class="secondary" data-request-part>Request a part ↗</button></div>':''}`;
+ return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
 }
 function updateCatalogResults(){
- const area=document.getElementById('catalog-results');if(area)area.innerHTML=catalogResults();
+ const area=document.getElementById('catalog-results');if(area){area.innerHTML=catalogResults();localize(area,currentLanguage);}
+}
+function setPartnerResults(area,markup){
+ area.innerHTML=markup;
+ localize(area,currentLanguage);
 }
 async function updatePartnerResults(){
  clearTimeout(partnerSearchTimer);partnerSearchController?.abort();
  const area=document.getElementById('partner-results');if(!area)return;
  const q=S.q.trim();
  if(q.length<2){area.innerHTML='';return;}
- area.innerHTML='<p role="status">Checking connected inventory sources…</p>';
+ setPartnerResults(area,'<p>Searching eBay…</p>');
  const controller=new AbortController();partnerSearchController=controller;
+ const isCurrent=()=>!controller.signal.aborted&&S.q.trim()===q&&area.isConnected;
  try{
   const response=await fetch('/api/partner-search?'+new URLSearchParams({q}),{signal:controller.signal,cache:'no-store'});
-  if(!response.ok)throw Error('supplier');const data=await response.json();
-  if(controller.signal.aborted||S.q.trim()!==q||!area.isConnected)return;
-  if(data.status==='not_connected'){area.innerHTML='<p class="source-note">External inventory is not connected yet. Results above are published seller listings and saved partner offers.</p>';return;}
-  if(data.status!=='connected')throw Error('supplier');
-  area.innerHTML='<h3>eBay inventory · Affiliate links</h3><p>Price and availability checked '+esc(new Date(data.checked_at).toLocaleString('en-US'))+'. Confirm vehicle compatibility and shipping costs on eBay. We may earn a commission from qualifying purchases.</p>'+(!data.items.length?'<p>No results returned by eBay for this search.</p>':'<div class="grid">'+data.items.map(x=>`<article class="product">${x.image?'<img src="'+esc(x.image)+'" alt="'+esc(x.title)+'" loading="lazy">':''}<div><small>eBay · ${esc(x.condition)}</small><h3>${esc(x.title)}</h3><strong>${money(Math.round(x.price*100))}</strong><p>Shipping and taxes may be extra.</p><a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay ↗</a></div></article>`).join('')+'</div>');
- }catch(error){if(error.name!=='AbortError'&&area.isConnected&&S.q.trim()===q)area.innerHTML='<p class="source-note" role="status">External inventory could not be checked. Published results above remain available. Try again shortly.</p>';}
+  if(!response.ok)throw Error('supplier');
+  const data=await response.json();
+  if(!isCurrent())return;
+  if(data.status!=='connected'||!Array.isArray(data.items))throw Error('supplier');
+  if(!data.items.length){
+   setPartnerResults(area,S.site&&noCatalogMatches()?emptyResults:'<p>No matching listings on eBay.</p>');
+   return;
+  }
+  setPartnerResults(area,'<h3>eBay inventory · Affiliate links</h3><p>Check current price, availability, fitment and shipping on eBay. We may earn a commission from qualifying purchases.</p><div class="grid">'+data.items.map(x=>`<article class="product">${x.image?'<img src="'+esc(x.image)+'" alt="'+esc(x.title)+'" loading="lazy">':''}<div><small>eBay${x.condition?' · '+esc(x.condition):''}</small><h3 data-no-translate>${esc(x.title)}</h3><strong>${money(Math.round(x.price*100))}</strong><p>Shipping and taxes may be extra.</p><a class="secondary" href="${esc(x.url)}" rel="sponsored nofollow noopener noreferrer" target="_blank">View on eBay</a></div></article>`).join('')+'</div>');
+ }catch{
+  if(isCurrent())setPartnerResults(area,'<p>eBay search is temporarily unavailable. Try again shortly.</p>');
+ }
 }
 function home(){
  const st=S.site?.settings||{};
- layout(`<section class="search-hero"><div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div class="search-hero-inner"><div class="eyebrow">REPARTES USA / FIND YOUR NEXT PART</div><h1>${esc(st.hero_title||'Keep your vehicle moving.')}<br><span>Start with the right part.</span></h1><p class="hero-intro">Search published parts and partner offers by part name, number, or vehicle. One place to start your search.</p><form id="part-search" role="search" class="hero-search"><label for="search">What part are you looking for?<input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="Try: turbo Duramax 2005" value="${esc(S.q)}" aria-controls="catalog-results"></label><button class="primary" type="submit">Find my part <span aria-hidden="true">↗</span></button></form><div class="search-hints"><span>Try a search:</span><button type="button" data-search-term="turbo Duramax">Turbo Duramax</button><button type="button" data-search-term="alternator">Alternator</button><button type="button" data-search-term="brake pads">Brake pads</button></div><div class="hero-assurance"><span>⌕ Search without registering</span><span>↗ Clearly labelled partner links</span><span>✓ Check fitment before buying</span></div><button type="button" class="hero-request" data-request-part>Can't find it? Request a part →</button></div></section><section class="source-strip"><div><strong>Search with a purpose.</strong><span>Vehicle + part name or manufacturer part number</span></div><div><strong>Real sources. Clear next steps.</strong><span>Seller listings and external offers stay clearly identified.</span></div></section><section class="section" id="catalog"><div class="eyebrow">THE PART FINDER</div><h2>Explore published parts & offers</h2><p>Search matches are suggestions. Confirm the part number, vehicle fitment and availability before buying.</p><div id="catalog-results">${catalogResults()}</div><div id="partner-results" aria-live="polite"></div></section><section class="section buyer-section"><div><div class="eyebrow">BUY WITH MORE CONTEXT</div><h2>A little checking goes a long way.</h2><p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p><a class="secondary" href="/guides/used-auto-parts.html">Read the parts buying guide ↗</a></div><div class="buying-steps"><p><b>01</b> Describe your vehicle and the part you need.</p><p><b>02</b> Compare real listings and partner offers.</p><p><b>03</b> Verify fitment before you purchase.</p></div></section><section class="section"><h2>Website reviews</h2><p>Genuine user feedback, never invented testimonials.</p><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`);
+ layout(`<section class="search-hero"><div class="hero-orbit" aria-hidden="true"><span></span><span></span><span></span></div><div class="search-hero-inner"><h1>${esc(st.hero_title||'Keep your vehicle moving.')}<br><span>Start with the right part.</span></h1><p class="hero-intro">Search published parts and partner offers by part name, number, or vehicle.</p><form id="part-search" role="search" class="hero-search"><label for="search">What part are you looking for?<input id="search" name="q" type="search" maxlength="150" autocomplete="off" placeholder="Try: turbo Duramax 2005" value="${esc(S.q)}" aria-controls="catalog-results partner-results"></label><button class="primary" type="submit">Find my part <span aria-hidden="true">↗</span></button></form><div class="search-hints"><span>Try a search:</span><button type="button" data-search-term="turbo Duramax">Turbo Duramax</button><button type="button" data-search-term="alternator">Alternator</button><button type="button" data-search-term="brake pads">Brake pads</button></div><button type="button" class="hero-request" data-request-part>Can't find it? Request a part →</button></div></section><section class="section" id="catalog"><div class="eyebrow">THE PART FINDER</div><h2>Explore published parts & offers</h2><p>Search matches are suggestions. Confirm the part number, vehicle fitment and availability before buying.</p><div id="catalog-results">${catalogResults()}</div><div id="partner-results" aria-live="polite"></div></section><section class="section buyer-section"><div><div class="eyebrow">BUY WITH MORE CONTEXT</div><h2>A little checking goes a long way.</h2><p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p><a class="secondary" href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Read the parts buying guide</a></div></section><section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`);
  if(S.q)updatePartnerResults();
 }
 
 function part(id){
  const x=S.site?.listings?.find(z=>z.id===id);
+ if(!S.site){layout('<section class="section empty"><p>Seller inventory is temporarily unavailable.</p><button data-act="retry">Reintentar</button></section>');return}
  if(!x){layout('<section class="section empty">Pieza no disponible. <a href="#home">Volver</a></section>');return}
  const on=!!S.site.settings?.payments_enabled;
  layout(`<section class="section"><a href="#home">← Volver al catálogo</a><div class="detail"><img src="${esc(x.image_url)}" alt="${esc(x.title)}"><article><div class="eyebrow">${esc(x.make)} · ${esc(x.model)}</div><h1>${esc(x.title)}</h1><h2>${money(x.price_cents)}</h2><p>Condición: ${esc(x.condition)} · Años: ${esc(x.year_min)}–${esc(x.year_max)}</p><p>Número de pieza: ${esc(x.part_number||'No especificado')}</p><p>Vendedor: ${esc(x.shop_name)}</p>${x.public_contact_enabled&&x.contact_email?'<p>Business email: <a href="mailto:'+encodeURIComponent(x.contact_email)+'">'+esc(x.contact_email)+'</a></p>':''}${x.public_contact_enabled&&x.contact_phone?'<p>Business phone: <a href="tel:'+esc(x.contact_phone)+'">'+esc(x.contact_phone)+'</a></p>':''}<button class="primary" data-act="checkout" data-id="${esc(x.id)}" ${on?'':'disabled'}>${on?'Comprar esta pieza':'Compras desactivadas'}</button><p>Envío incluido en el precio anunciado. Verifica la compatibilidad antes de comprar. <a href="#shipping">Devoluciones: solicita dentro de 30 días desde la entrega.</a></p></article></div><article class="panel"><h2>Descripción del vendedor</h2><p>${esc(x.description)}</p></article>${commercialOffers('part')}<h2>Verified buyer reviews</h2><p>Only customers with a paid order can rate a part.</p>${showReviews()}</section>`);
@@ -150,7 +177,7 @@ function signInForm(){
  return `<form class="panel" id="signin"><h2>Iniciar sesión</h2>${field('email','Correo electrónico','','email')}${field('password','Contraseña','','password')}<button class="primary">Entrar</button></form>`;
 }
 function login(){
- layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password. Google sign-in may be added later.</p><div class="two">${signInForm()}<form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
+ layout(`<section class="section"><h1>Tu cuenta RePartes USA</h1><p>Sign in or register with your email address and password.</p><div class="two">${signInForm()}<form class="panel" id="signup"><h2>Crear cuenta</h2>${field('display_name','Nombre')}${field('email','Correo','','email')}${field('password','Contraseña (mín. 10 caracteres)','','password')}<button class="secondary">Registrarme</button><p>Si es necesario, confirma tu dirección de correo.</p></form></div></section>`);
 }
 function feedback(){
  if(!S.session){layout(authWall);return}
@@ -209,7 +236,7 @@ function owner(){
  const quotePanel='<section class="panel"><h2>Part requests</h2><p>Private requests from visitors. Review the vehicle details and availability before contacting the customer.</p><div class="request-inbox">'+((S.partRequests||[]).map(q=>`<article class="request-inbox-card"><div class="flex"><strong>${esc(q.vehicle_year)} ${esc(q.make)} ${esc(q.model)}</strong>${statusBadge(q.status)}</div><h3>${esc(q.part)}</h3><p>${esc(q.details||'No additional details.')}</p><p>${esc(q.contact_name)} · <a href="mailto:${encodeURIComponent(q.email)}">${esc(q.email)}</a>${q.phone?' · <a href="tel:'+encodeURIComponent(q.phone)+'">'+esc(q.phone)+'</a>':''}</p><small>${date(q.created_at)}</small><div class="flex">${actionButton('quotestatus',q.id,'reviewing','Mark reviewing')} ${actionButton('quotestatus',q.id,'closed','Close request')} ${q.status!=='new'?actionButton('quotestatus',q.id,'new','Reopen'):''}</div></article>`).join('')||'<p>No part requests yet.</p>')+'</div></section>';
  const testState=S.checkoutTest||{},testRecord=testState.record;
  const testPassed=Boolean(testRecord?.paid_webhook_at&&testRecord?.refund_webhook_at&&testRecord?.status==='refunded');
- const testPanel=`<section class="panel"><h2>Payment launch checklist</h2><p>Server environment: <strong>${esc(testState.mode||'disabled')}</strong>. Customer payments: <strong>${settings.payments_enabled?'enabled':'off'}</strong>.</p><h3>Private purchase and refund test</h3><p>This uses $10 in Stripe test funds. No real card or physical inventory is needed. Test records are separate from marketplace sales.</p><p>Status: <strong>${testPassed?'Payment and refund webhooks verified':esc(testRecord?.status||'Not started')}</strong></p><p>Payment webhook: ${testRecord?.paid_webhook_at?'received':'pending'} · Refund webhook: ${testRecord?.refund_webhook_at?'received':'pending'}</p>${testState.mode==='test'&&testState.configured?'<button class="primary" data-act="checkoutteststart">Open private test checkout</button> '+(testRecord?.paid_webhook_at&&!testRecord.refund_webhook_at?'<button data-act="checkouttestrefund">Refund test payment</button> ':''):'<p>Test checkout requires CHECKOUT_MODE=test and a server-side test key.</p>'}<button data-act="retry">Refresh test results</button><h3>Real inventory</h3><p>Only publish parts that a seller actually has, using original photos and accurate compatibility, condition and price.</p><a href="#sell">Submit a real part</a></section>`;
+ const testPanel=`<section class="panel"><h2>Payment launch checklist</h2><p>Server environment: <strong>${esc(testState.mode||'disabled')}</strong>. Customer payments: <strong>${settings.payments_enabled?'enabled':'off'}</strong>.</p><h3>Private purchase and refund test</h3><p>This uses $10 in Stripe test funds. No real card or physical inventory is needed. Test records are separate from marketplace sales.</p><p>Status: <strong>${testPassed?'Payment and refund webhooks verified':esc(testRecord?.status||'Not started')}</strong></p><p>Payment webhook: ${testRecord?.paid_webhook_at?'received':'pending'} · Refund webhook: ${testRecord?.refund_webhook_at?'received':'pending'}</p>${testState.mode==='test'&&testState.configured?'<button class="primary" data-act="checkoutteststart">Open private test checkout</button> '+(testRecord?.paid_webhook_at&&!testRecord.refund_webhook_at?'<button data-act="checkouttestrefund">Refund test payment</button> ':''):'<p>Test checkout requires CHECKOUT_MODE=test and a server-side test key.</p>'}<button data-act="retry">Refresh test results</button><h3>Real inventory</h3><p>Only publish parts that a seller actually has, using original photos and accurate compatibility, condition and price.</p><a href="/#sell">Submit a real part</a></section>`;
  const cards=[['Ventas cobradas',money(m.gross_cents)],['Comisiones brutas',money(m.commission_cents)],['Pedidos',m.orders_paid||0],['Anuncios pendientes',m.listings_pending||0],['Vendedores pendientes',m.sellers_pending||0],['Usuarios',m.buyers_total||0],['Referidos registrados',d.referral_stats?.registered||0],['Referidos compradores',d.referral_stats?.qualified||0]];
  const socials=settings.social_links||{};
  const socialForm='<form class="panel" id="socialsettings"><h2>Official social media profiles</h2><p>Add each of your official social accounts whenever you create one. Empty links stay hidden. No social media account is used for sign-in.</p>'+SOCIAL_NETWORKS.map(([k,name])=>field(k,name+' profile URL',socials[k]||'','url',false)).join('')+'<button class="primary">Save official social links</button></form>';
@@ -285,8 +312,13 @@ async function route(){
  layout('<section class="section"><h2>Cargando datos…</h2></section>');
  try{
   if(['orders','sell','return','review'].includes(p)&&S.session)S.mine=await api('mine');
-  if(['home','catalog',''].includes(p))S.currentReviews=await api('reviews','GET',{scope:'website'});
-  if(p==='part'&&id)S.currentReviews=await api('reviews','GET',{scope:'part',listing_id:id});
+  if(!isOwnerPage&&!S.site&&['home','catalog','part',''].includes(p))await loadPublicCatalog();
+  if(['home','catalog',''].includes(p)||(p==='part'&&id)){
+   const reviewQuery=p==='part'?{scope:'part',listing_id:id}:{scope:'website'};
+   const reviews=await api('reviews','GET',reviewQuery).catch(()=>null);
+   if(version!==current)return;
+   S.currentReviews=reviews;
+  }
   if(p==='referrals'&&S.session)S.referrals=await api('referrals');
   if(p==='owner'&&S.me?.is_owner){
    const [dashboard,test,quotes,supplier]=await Promise.all([api('dashboard'),api('checkout-test'),api('part-requests'),api('supplier-status')]);
@@ -306,12 +338,16 @@ async function refreshIdentity(){
  if(S.session?.user?.id===userId)S.me=identity;
 }
 async function refreshCatalog(){S.site=await api('site')}
+async function loadPublicCatalog(){
+ try{await refreshCatalog();}
+ catch{S.site=null;}
+}
 document.addEventListener('click',async ev=>{
  const b=ev.target.closest('[data-act]');if(!b)return;
  const a=b.dataset.act,id=b.dataset.id,status=b.dataset.status;
  b.disabled=true;
  try{
-  if(a==='retry'){await route();return}
+  if(a==='retry'){if(b.dataset.reload!==undefined)location.reload();else await route();return}
   if(a==='quotestatus'){await api('admin.quote.status','POST',{id,status});toast('Part request updated.');await route();return}
   if(a==='checkoutteststart'){const r=await api('admin.checkout-test.start','POST',{});const url=new URL(r.url);if(url.protocol!=='https:'||url.hostname!=='checkout.stripe.com')throw Error('Unexpected checkout address');location.href=url.href;return}
   if(a==='checkouttestrefund'){await api('admin.checkout-test.refund','POST',{});toast('Test refund requested. Refresh to confirm its webhook.');await route();return}
@@ -357,7 +393,7 @@ document.addEventListener('click',async ev=>{
 document.addEventListener('input',ev=>{if(ev.target.id==='search'){
  S.q=ev.target.value;updateCatalogResults();clearTimeout(partnerSearchTimer);partnerSearchController?.abort();
  const area=document.getElementById('partner-results');if(area)area.innerHTML='';
- partnerSearchTimer=setTimeout(updatePartnerResults,650);
+ if(S.q.trim().length>=2)partnerSearchTimer=setTimeout(updatePartnerResults,650);
 }});
 document.addEventListener('click',ev=>{
  const button=ev.target.closest('[data-search-term]');if(!button)return;
@@ -407,13 +443,13 @@ document.addEventListener('submit',async ev=>{
  }catch(err){toast(err.message)}finally{if(button?.isConnected)button.disabled=false}
 });
 document.addEventListener('change',async ev=>{if(ev.target.id==='language'){currentLanguage=ev.target.value;setLanguage(currentLanguage);await route()}});
-mountPartRequests({submit:data=>api('quote.submit','POST',data)});
+if(!isOwnerPage)mountPartRequests({submit:data=>api('quote.submit','POST',data)});
 window.addEventListener('hashchange',route);
 (async()=>{
  if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
-  await Promise.all([isOwnerPage?null:refreshCatalog(),refreshIdentity()]);
+  await refreshIdentity();
   await claimRef();
   sb.auth.onAuthStateChange((_event,session)=>{
    const previousUser=S.session?.user?.id;
@@ -430,5 +466,5 @@ window.addEventListener('hashchange',route);
    setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0);
   });
   await route();
- }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
+ }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry" data-reload>Reintentar</button></section>')}
 })();

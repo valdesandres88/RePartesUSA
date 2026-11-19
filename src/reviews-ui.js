@@ -3,7 +3,7 @@ const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&
 export const stars=n=>'<span class="stars" aria-label="'+esc(n)+' out of five stars">'+('★'.repeat(Number(n)||0))+('☆'.repeat(5-(Number(n)||0)))+'</span>';
 export function reviewList(data){
  if(!data)return '<p>Loading reviews…</p>';
- if(!data.count)return '<div class="empty">There are no published reviews yet. We never invent ratings or testimonials.</div>';
+ if(!data.count)return '<div class="empty">There are no published reviews yet.</div>';
  return '<div class="panel"><h3>'+esc(data.average.toFixed(1))+' / 5 '+stars(Math.round(data.average))+' · '+esc(data.count)+' reviews</h3>'+
  data.reviews.map(x=>'<article class="review"><div>'+stars(x.rating)+' <small>'+esc(new Date(x.created_at).toLocaleDateString())+'</small></div><h3>'+esc(x.title)+'</h3><p>'+esc(x.comment)+'</p><small>'+(x.subject==='part'?'Verified purchaser':'Website member')+'</small></article>').join('')+'</div>';
 }
