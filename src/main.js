@@ -1,3 +1,4 @@
+import {localMapMarkup,mountLocalMap} from './local-map.js';
 import {createClient} from '@supabase/supabase-js';
 import {money} from './money.js';
 import {reviewList,reviewForm,stars} from './reviews-ui.js';
@@ -128,7 +129,9 @@ function noCatalogMatches(){
  const {listings,offers}=catalogMatches();
  return !listings.length&&!offers.length;
 }
-const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part data-request-from-search>Request a part</button></div>';
+let openLocalMap;
+const mapLink='<button type="button" class="secondary" data-local-map="search">Search nearby stores</button>';
+const emptyResults='<div class="empty"><h3>No matching parts found.</h3><p>Try a part number or request help finding the part.</p><button class="secondary" data-request-part data-request-from-search>Request a part</button>'+mapLink+'</div>';
 function catalogResults(){
  if(S.searchByNumber&&!normalizePartNumber(S.q))return '';
  if(!S.site)return '<p>Seller inventory is temporarily unavailable.</p>';
@@ -199,7 +202,7 @@ async function updatePartnerResults(trackSearch=false){
   if(!isCurrent())return;
   const message=featured?'Featured eBay parts are temporarily unavailable.':'eBay search is temporarily unavailable. Try again shortly.';
   const requestButton=!featured&&noCatalogMatches()
-   ? '<button class="secondary" data-request-part data-request-from-search>Request a part</button>'
+   ? '<button class="secondary" data-request-part data-request-from-search>Request a part</button>'+mapLink
    : '';
   setPartnerResults(area,`<p>${message}</p>${requestButton}`);
  }
@@ -218,6 +221,7 @@ function home(){
      <button class="primary" type="submit">Find my part</button>
     </form>
     <div class="search-hints">
+     <button type="button" data-local-map="browse">Nearby mechanics and parts stores</button>
      <button type="button" id="part-number-mode" aria-pressed="${S.searchByNumber}">Search by OEM number</button>
      <button type="button" data-search-term="brake pads">Brake pads</button>
      <button type="button" data-search-term="alternator">Alternator</button>
@@ -229,12 +233,15 @@ function home(){
    <div id="partner-results" aria-live="polite"></div>
    <div id="catalog-results">${catalogResults()}</div>
   </section>
+  ${localMapMarkup(currentLanguage==='es',commercialOffers('map'))}
   <section class="section buyer-section">
    <h2>Auto parts buying guide</h2>
    <p>Compare part numbers, review the condition, and confirm the return terms with the seller or partner.</p>
    <a class="secondary" href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Read the parts buying guide</a>
   </section>
   <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`,{showBack:false});
+ openLocalMap=mountLocalMap(document.getElementById('local-map'),currentLanguage==='es',()=>S.q);
+ if(marketplaceRoute()[1]==='map')openLocalMap(false);
  void updatePartnerResults();
 }
 
@@ -320,7 +327,7 @@ function owner(){
  const publisher=settings.adsense_publisher_id||'';
  const adsPanel='<form class="panel" id="adssettings"><h2>Advertising — Google AdSense Auto ads</h2><p>Ads are OFF by default. Saving your real publisher ID enables ads.txt verification; it does NOT activate ads. Google must approve this site, and consent/privacy settings must be completed before turning ads on. No income is guaranteed.</p>'+field('adsense_publisher_id','Your real AdSense publisher ID (ca-pub-XXXXXXXXXXXXXXXX)',publisher,'text',false)+'<p><a href="/ads.txt" target="_blank" rel="noopener">Check public ads.txt ↗</a> · <a href="https://adsense.google.com/" target="_blank" rel="noopener noreferrer">Open Google AdSense ↗</a></p><label class="check"><input name="adsense_enabled" type="checkbox" '+(settings.adsense_enabled?'checked':'')+'> Enable automatic ads on public pages (not account / Owner pages)</label><label class="check"><input name="confirm_approved" type="checkbox"> I confirm that AdSense shows this site as Ready / approved</label><label class="check"><input name="confirm_privacy" type="checkbox"> I confirm I configured required Google CMP / privacy messages and reviewed applicable laws</label><button class="primary">Save advertising settings</button></form>';
  const offerRows=offers.map(x=>'<article class="offer-card"><div class="offer-kind">'+esc(x.kind)+' · '+esc(x.placement)+'</div><h3>'+esc(x.title)+'</h3><p>'+esc(x.description)+'</p><p><a href="'+esc(x.url)+'" target="_blank" rel="noopener noreferrer">'+esc(x.url)+'</a></p><button type="button" data-act="offeredit" data-id="'+esc(x.id)+'">Edit offer</button> <button type="button" data-act="offerremove" data-id="'+esc(x.id)+'">Remove offer</button></article>').join('');
- const offersPanel='<section class="panel"><h2>Affiliate & sponsor partners</h2><p>Only add valid affiliate tracking links from networks that accepted you, or sponsorships agreed directly with real businesses. Every public promotion is clearly labelled. No sponsored traffic or fake clicks.</p><div class="offer-grid">'+(offerRows||'<p>No commercial offers yet.</p>')+'</div><form id="offeradd"><h3>Add a genuine commercial offer</h3><label>Type<select name="kind"><option value="affiliate">Affiliate referral link</option><option value="sponsored">Paid sponsorship</option></select></label><label>Placement<select name="placement"><option value="home">Homepage / catalog</option><option value="part">Real part pages</option></select></label>'+field('title','Advertiser / partner title')+field('url','Exact HTTPS tracking or sponsor URL','','url')+'<label>Short useful description<textarea name="description" minlength="15" maxlength="260" rows="3" required></textarea></label><label class="check"><input name="confirm_relationship" type="checkbox" required> I confirm this is my real affiliate tracking link or a real sponsor agreement.</label><button type="submit" class="primary">Add approved partner offer</button><button type="button" data-act="offercancel" hidden>Cancel editing</button></form></section>';
+ const offersPanel='<section class="panel"><h2>Affiliate & sponsor partners</h2><p>Only add valid affiliate tracking links from networks that accepted you, or sponsorships agreed directly with real businesses. Every public promotion is clearly labelled. No sponsored traffic or fake clicks.</p><div class="offer-grid">'+(offerRows||'<p>No commercial offers yet.</p>')+'</div><form id="offeradd"><h3>Add a genuine commercial offer</h3><label>Type<select name="kind"><option value="affiliate">Affiliate referral link</option><option value="sponsored">Paid sponsorship</option></select></label><label>Placement<select name="placement"><option value="home">Homepage / catalog</option><option value="part">Real part pages</option><option value="map">Local map</option></select></label>'+field('title','Advertiser / partner title')+field('url','Exact HTTPS tracking or sponsor URL','','url')+'<label>Short useful description<textarea name="description" minlength="15" maxlength="260" rows="3" required></textarea></label><label class="check"><input name="confirm_relationship" type="checkbox" required> I confirm this is my real affiliate tracking link or a real sponsor agreement.</label><button type="submit" class="primary">Add approved partner offer</button><button type="button" data-act="offercancel" hidden>Cancel editing</button></form></section>';
  const sellers=(d.sellers||[]).map(x=>`<tr><td>${esc(x.shop_name)}</td><td>${statusBadge(x.status)}</td><td>${x.connect_configured?'Ready':'Pending'}</td><td>${(x.commission_bps/100).toFixed(2)}% ${x.is_platform_store?'(Owner)':actionButton('sellercommission',x.user_id,'','Adjust')}</td><td>${x.is_platform_store?'Protected':actionButton('sellerstatus',x.user_id,'approved','Approve')+' '+actionButton('sellerstatus',x.user_id,'suspended','Suspend')}</td></tr>`).join('');
  const listings=(d.listings||[]).map(x=>`<tr><td><b>${esc(x.title)}</b><p>${esc(x.make)} ${esc(x.model)} · ${esc(x.year_min)}–${esc(x.year_max)} · ${esc(x.condition)}</p><p>${esc(x.description.slice(0,180))}</p>${x.image_url?'<a target="_blank" rel="noopener noreferrer" href="'+esc(x.image_url)+'">Ver foto original ↗</a>':'Sin foto original'}<p>Vendedor declara inventario: ${x.seller_has_item?'Sí':'No'} · Foto original declarada: ${x.original_photo_attested?'Sí':'No'}</p></td><td>${money(x.price_cents)}</td><td>${statusBadge(x.status)}</td><td>${['reserved','sold'].includes(x.status)?'Bloqueado':actionButton('listingstatus',x.id,'approved','Aprobar')+' '+actionButton('listingstatus',x.id,'rejected','Rechazar')+' '+actionButton('listingstatus',x.id,'removed','Ocultar')}</td></tr>`).join('');
  const purchases=(d.orders||[]).map(x=>`<tr><td>${esc(x.listings?.title||'Pieza')}</td><td>${money(x.amount_cents)}</td><td>${money(x.platform_fee_cents)}</td><td>${statusBadge(x.status)}</td><td>${x.status==='shipped'&&!x.delivered_at?actionButton('delivery',x.id,'','Confirmar entrega')+' ':''}${['paid','shipped'].includes(x.status)?actionButton('refund',x.id,'','Reembolso'):'—'}</td></tr>`).join('');
@@ -517,6 +524,8 @@ function setPartNumberMode(byNumber){
  localize(form,currentLanguage);
 }
 document.addEventListener('click',ev=>{
+ const map=ev.target.closest('[data-local-map]');
+ if(map){openLocalMap?.(map.dataset.localMap==='search');return;}
  const mode=ev.target.closest('#part-number-mode');
  if(mode){
   setPartNumberMode(!S.searchByNumber);

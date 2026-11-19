@@ -321,7 +321,7 @@ export async function handler(event){
    }
    if(action==='admin.offer.add'||action==='admin.offer.update'){
     const kind=exactStatus(body.kind,['affiliate','sponsored']);
-    const placement=exactStatus(body.placement,['home','part']);
+    const placement=exactStatus(body.placement,['home','part','map']);
     const title=str(body.title,100),description=str(body.description,260),raw=str(body.url,1500);
     if(title.length<4||description.length<15||raw.length<12||body.confirm_relationship!==true)fail('Fill all offer fields and confirm a real commercial relationship or approved affiliate link.');
     let target;try{target=new URL(raw);}catch{fail('Enter an HTTPS affiliate or sponsor URL.');}
