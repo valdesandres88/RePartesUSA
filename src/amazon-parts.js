@@ -228,7 +228,7 @@ export function amazonPartsPage({layout,esc,pageId,vehicleId}){
   const number=index+1;
   return number===page?`<span aria-current="page">${number}</span>`:`<a href="${pageUrl(number,vehicle)}" aria-label="Page ${number}">${number}</a>`;
  }).join('');
- const back=page>1?`<a class="secondary" href="${pageUrl(page-1,vehicle)}">← Back</a>`:'';
+ const back=page>1?`<a class="secondary" href="${pageUrl(page-1,vehicle)}">← Back</a>`:'<a class="secondary" href="#home">← Back to marketplace</a>';
  layout(`<section class="section amazon-parts"><h1>Amazon Auto Parts Guide</h1>${back}<p>Explore maintenance and repair categories for 2026 and 2027. Confirm fitment and stock for the specific listing before ordering.</p><p>As an Amazon Associate I earn from qualifying purchases.</p>
  <form id="amazon-vehicle" class="amazon-vehicle"><label for="amazon-vehicle-query">Car or truck (year, make, model and engine)</label><input id="amazon-vehicle-query" name="vehicle" type="search" maxlength="100" value="${esc(vehicle)}" placeholder="Example: 2011 Ram 1500 5.7L"><button class="primary" type="submit">Apply vehicle</button></form>
  <div class="offer-grid amazon-parts-grid">${cards}</div><nav class="amazon-pagination" aria-label="Amazon auto parts pages">${numbers}</nav></section>`,{showBack:false});
