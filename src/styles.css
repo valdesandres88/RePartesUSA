@@ -234,3 +234,50 @@
 .market-header .market-menu nav a,.market-menu nav button{display:flex;align-items:center;min-height:44px;padding:6px 10px;color:#18382e;background:#f1f6f2;border-radius:8px;text-align:left}
 .market-menu nav .language-label{justify-self:start;margin:0}
 @media(max-width:540px){.header.market-header{padding:10px;gap:6px}.market-header .logo{font-size:clamp(14px,4vw,20px);gap:3px}.market-header .request-launcher,.market-menu summary{padding-inline:8px;font-size:13px}}
+
+.search-hero {
+  background: radial-gradient(ellipse at 85% 5%, #286546 0%, transparent 55%), linear-gradient(120deg, #101d1a 10%, #103e33 100%);
+  border-bottom: 4px solid #ddf675;
+  padding: clamp(30px, 5vw, 70px) clamp(16px, 4vw, 42px);
+}
+.search-hero-inner {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(240px, 320px);
+  align-items: end;
+  gap: clamp(18px, 4vw, 52px);
+}
+.search-hero h1 {font-family: 'Space Grotesk', system-ui, sans-serif; text-wrap: pretty}
+.hero-search {padding: 9px 9px 9px 16px; background: #fff; border: 0; box-shadow: 0 12px 26px #06140e66}
+.hero-search .primary {background: #ddf675; min-height: 48px}
+.search-hints button {border-radius: 999px; min-height: 40px; background: #ffffff0a}
+.hero-actions {display: grid; gap: 8px}
+.hero-actions button, .hero-actions a {
+  display: grid;
+  grid-template-columns: 34px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  min-height: 54px;
+  padding: 8px 12px;
+  text-align: left;
+  text-decoration: none;
+  font-weight: 700;
+  line-height: 1.25;
+  color: #f9fff7;
+  background: #102f26;
+  border: 1px solid #9ed5ad66;
+  border-radius: 12px;
+}
+.hero-actions :is(button,a):hover {background: #295741}
+.hero-actions a:focus-visible {outline: 2px solid #ddf675; outline-offset: 3px}
+.hero-actions span {display: grid; place-items: center; width: 34px; height: 34px; border-radius: 8px; background: #ddf675; color: #132e23; font-size: 19px}
+.hero-actions b {color: #ddf675}
+.shop-catalog .ebay-card, .shop-catalog .product {border-radius: 16px; box-shadow: 0 5px 14px #0d29290b}
+.shop-catalog .ebay-card strong {color: #136445}
+.shop-catalog .ebay-card .secondary {background: #e5f2e7}
+.shop-catalog .ebay-card .secondary:hover {background: #d2ebd7}
+@media (max-width: 760px) {
+  .search-hero-inner {grid-template-columns: minmax(0, 1fr)}
+  .hero-actions {grid-template-columns: repeat(3, minmax(0, 1fr))}
+  .hero-actions button, .hero-actions a {display: flex; flex-direction: column; align-items: flex-start; gap: 7px; font-size: .8rem; padding: 9px 8px; overflow-wrap: anywhere}
+  .hero-actions b {display: none}
+}

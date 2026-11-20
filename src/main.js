@@ -269,6 +269,7 @@ function home(){
  layout(`
   <section class="search-hero">
    <div class="search-hero-inner">
+    <div class="search-hero-content">
     <h1>${esc(st.hero_title||'Keep your vehicle moving.')}</h1>
     <form id="part-search" role="search" class="hero-search">
      <label for="search"><span id="search-label">${S.searchByNumber?'Enter the full part number':'What part are you looking for?'}</span>
@@ -277,15 +278,19 @@ function home(){
      <button class="primary" type="submit">Find my part</button>
     </form>
     <div class="search-hints">
-     <button type="button" data-local-map="browse">Nearby mechanics and parts stores</button>
      <button type="button" id="part-number-mode" aria-pressed="${S.searchByNumber}">Search by OEM number</button>
      <button type="button" data-search-term="brake pads">Brake pads</button>
      <button type="button" data-search-term="alternator">Alternator</button>
      <button type="button" data-search-term="turbo Duramax">Turbo Duramax</button>
     </div>
+    </div>
+    <div class="hero-actions" role="group" aria-label="Parts marketplace shortcuts">
+     <button type="button" data-request-part><span aria-hidden="true">＋</span>Request a part <b aria-hidden="true">↗</b></button>
+     <button type="button" data-local-map="browse"><span aria-hidden="true">⌖</span>Nearby mechanics and parts stores <b aria-hidden="true">↗</b></button>
+     <a href="#sell"><span aria-hidden="true">▤</span>Sell your parts <b aria-hidden="true">↗</b></a>
+    </div>
    </div>
   </section>
-  <aside class="section seller-invite"><div><h2>Have auto parts to sell?</h2><p>Apply for a seller account, then list your parts with original photos, prices and vehicle details. Listings are reviewed before publication.</p></div><a class="primary" href="#sell">Sell your parts</a></aside>
   <section class="section shop-catalog" id="catalog" aria-label="${currentLanguage==='es'?'Catálogo de piezas':'Parts catalog'}">
    <div id="partner-results" aria-live="polite"></div>
    <div id="catalog-results">${catalogResults()}</div>
