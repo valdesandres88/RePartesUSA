@@ -133,7 +133,34 @@ function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute
  <section><strong>${es?'Mercado':'Marketplace'}</strong><a href="#home">Explorar piezas</a><a href="#sell">Vender</a><a href="#home/map">${es?'Mapa local':'Local map'}</a></section>
  <section><strong>${es?'Mi cuenta':'My account'}</strong>${account}<a href="#referrals">Referidos</a></section>
  <section><strong>${es?'Ayuda y preferencias':'Help & settings'}</strong><a href="#careers">Careers (Coming soon)</a><a href="#contact/support">${es?'Soporte':'Support'}</a>${languageSelector()}</section>
- </nav></details></header>${showBack?`<div class="page-navigation">${backButton()}</div>`:''}<main>${inner}</main><footer><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p><p>Las compras de anuncios de eBay se completan en eBay.</p><div class="footer-nav"><a href="#careers">Careers (Coming soon)</a><a href="#about">Sobre nosotros</a><a href="#contact">Contacto</a><a href="#shipping">Envíos y devoluciones</a><a href="#referrals">Referidos</a><a href="#privacy">Privacidad</a><a href="#terms">Términos</a><a href="#advertising">Publicidad y afiliados</a><a href="#amazon-parts">Amazon Auto Parts</a><a href="/guides/${currentLanguage==='es'?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></div>${socialLinks()}<p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></p></footer>`;
+ </nav></details></header>${showBack?`<div class="page-navigation">${backButton()}</div>`:''}<main>${inner}</main><footer class="market-footer">
+  <div class="footer-inner">
+   <div class="footer-top">
+    <div class="footer-brand"><b>REPARTES USA</b><p>Marketplace de autopartes en Estados Unidos.</p></div>
+    <nav class="footer-nav" aria-label="${es?'Enlaces del pie de página':'Footer navigation'}">
+     <section><h2>${es?'Compras':'Shop'}</h2><ul>
+      <li><a href="#amazon-parts">Amazon Auto Parts</a></li>
+      <li><a href="/guides/${es?'comprar-piezas-usadas':'used-auto-parts'}.html">Auto parts buying guide</a></li>
+     </ul></section>
+     <section><h2>${es?'Ayuda':'Help'}</h2><ul>
+      <li><a href="#contact">Contacto</a></li>
+      <li><a href="#shipping">Envíos y devoluciones</a></li>
+     </ul></section>
+     <section><h2>${es?'Empresa':'Company'}</h2><ul>
+      <li><a href="#about">Sobre nosotros</a></li>
+      <li><a href="#careers">${es?'Empleo':'Careers'} <small class="footer-coming-soon">${es?'Próximamente':'Coming soon'}</small></a></li>
+      <li><a href="#referrals">Referidos</a></li>
+      <li><a href="#advertising">Publicidad y afiliados</a></li>
+     </ul></section>
+    </nav>
+   </div>
+   ${socialLinks()}
+   <div class="footer-bottom">
+    <div><p>Las compras de anuncios de eBay se completan en eBay.</p><small>© 2026 RePartes USA. Todos los derechos reservados.</small></div>
+    <nav class="footer-legal" aria-label="${es?'Enlaces legales':'Legal links'}"><a href="#privacy">Privacidad</a><a href="#terms">Términos</a></nav>
+   </div>
+  </div>
+ </footer>`;
  localize(app,currentLanguage);
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
