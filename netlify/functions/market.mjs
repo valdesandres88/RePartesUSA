@@ -13,6 +13,19 @@ const checkoutReady=()=>checkoutCredentialsCompatible(checkoutMode(),process.env
 const audit=async(d,actor,action,target,details={})=>{const {error}=await d.from('audit_log').insert({actor_id:actor,action,target_id:String(target||''),details});if(error)throw error;};
 const isPlatformSeller=id=>Boolean(process.env.OWNER_USER_ID)&&id===process.env.OWNER_USER_ID;
 const sellerReady=async(s,accountId)=>{if(!accountId)return false;const a=await s.accounts.retrieve(accountId);return Boolean(a.payouts_enabled&&a.capabilities?.transfers==='active');};
+async function refundOrder(d,actor,orderId,trigger='owner.refund'){
+    const order=unwrap(await d.from('orders').select('*').eq('id',orderId).single());
+    if(!['paid','shipped'].includes(order.status)||!order.stripe_payment_intent_id)fail('Pedido no elegible para reembolso.');
+    const existingReturn=unwrap(await d.from('return_requests').select('id,status').eq('order_id',order.id).maybeSingle());
+    if(existingReturn&&existingReturn.status!=='received')fail('Primero confirma la recepción de la devolución.');
+    const ownerSale=isPlatformSeller(order.seller_id);
+    const refund=await stripe().refunds.create({payment_intent:order.stripe_payment_intent_id,...(ownerSale?{}:{reverse_transfer:true,refund_application_fee:true}),reason:'requested_by_customer'},{idempotencyKey:`refund_full_${order.id}`});
+    if(refund.status==='succeeded'){
+     unwrap(await d.rpc('order_refunded',{p_order:order.id}));
+     if(existingReturn)unwrap(await d.from('return_requests').update({status:'refunded'}).eq('id',existingReturn.id).eq('status','received').select('id').single());
+    }
+    await audit(d,actor,trigger,order.id,{amount_cents:order.amount_cents,stripe_refund_id:refund.id,status:refund.status});return refund.status;
+}
 export async function handler(event){
  try{
   if(!process.env.SUPABASE_SERVICE_ROLE_KEY||!process.env.SUPABASE_URL)fail('Falta configuración privada de Supabase.',503);
@@ -326,6 +339,12 @@ export async function handler(event){
   }
   if(action.startsWith('admin.')){
    if(u.id!==process.env.OWNER_USER_ID)fail('Acceso exclusivo del owner.',403);
+   if(action==='admin.refund-automation'){
+    if(typeof body.enabled!=='boolean')fail('Choose whether to enable automatic refunds.');
+    unwrap(await d.from('site_settings').update({auto_refunds:body.enabled}).eq('id',1).select('id').single());
+    await audit(d,u.id,'automation.refund.setting','site',{enabled:body.enabled});
+    return respond({ok:true});
+   }
    if(action==='admin.support-automation'){
     if(typeof body.enabled!=='boolean')fail('Choose whether to enable automatic replies.');
     unwrap(await d.from('site_settings').update({support_auto_reply:body.enabled}).eq('id',1).select('id').single());
@@ -426,7 +445,7 @@ export async function handler(event){
    }
    if(action==='admin.return'){
     const status=exactStatus(body.status,['approved','rejected','received']);
-    const item=unwrap(await d.from('return_requests').select('id,order_id,status,authorized_at').eq('id',body.id).single());
+    const item=unwrap(await d.from('return_requests').select('id,order_id,status,authorized_at,requested_at').eq('id',body.id).single());
     if(['approved','rejected'].includes(status)&&item.status!=='requested')fail('La solicitud ya fue revisada.');
     if(status==='received'&&!['approved','in_transit'].includes(item.status))fail('Esta devolución todavía no puede marcarse como recibida.');
     if(status==='approved'){
@@ -438,6 +457,16 @@ export async function handler(event){
     if(status==='received')changes.received_at=new Date().toISOString();
     unwrap(await d.from('return_requests').update(changes).eq('id',item.id).eq('status',item.status).select('id').single());
     await audit(d,u.id,'owner.return',item.id,{status});
+    if(status==='received'&&checkoutMode()==='live'&&checkoutReady()){
+     const [settings,order]=await Promise.all([
+      d.from('site_settings').select('auto_refunds').eq('id',1).single(),
+      d.from('orders').select('delivered_at,stripe_session_id').eq('id',item.order_id).single()
+     ]);
+     if(settings.data?.auto_refunds&&order.data?.stripe_session_id?.startsWith('cs_live_')&&canRequestReturn(order.data.delivered_at,new Date(item.requested_at))){
+      try{return respond({ok:true,refund_status:await refundOrder(d,u.id,item.order_id,'automation.refund')});}
+      catch(error){console.error('Automatic refund needs review',item.order_id,error.message);return respond({ok:true,refund_status:'needs_review'});}
+     }
+    }
     return respond({ok:true});
    }
    if(action==='admin.commission'){
@@ -487,19 +516,7 @@ export async function handler(event){
     unwrap(await d.from('profiles').update({is_banned:body.is_banned===true}).eq('id',body.id));
     await audit(d,u.id,'owner.ban',body.id,{banned:body.is_banned===true});return respond({ok:true});
    }
-   if(action==='admin.refund'){
-    const order=unwrap(await d.from('orders').select('*').eq('id',body.id).single());
-    if(!['paid','shipped'].includes(order.status)||!order.stripe_payment_intent_id)fail('Pedido no elegible para reembolso.');
-    const existingReturn=unwrap(await d.from('return_requests').select('id,status').eq('order_id',order.id).maybeSingle());
-    if(existingReturn&&existingReturn.status!=='received')fail('Primero confirma la recepción de la devolución.');
-    const ownerSale=isPlatformSeller(order.seller_id);
-    const refund=await s().refunds.create({payment_intent:order.stripe_payment_intent_id,...(ownerSale?{}:{reverse_transfer:true,refund_application_fee:true}),reason:'requested_by_customer'},{idempotencyKey:`refund_full_${order.id}`});
-    if(refund.status==='succeeded'){
-     unwrap(await d.rpc('order_refunded',{p_order:order.id}));
-     if(existingReturn)unwrap(await d.from('return_requests').update({status:'refunded'}).eq('id',existingReturn.id).eq('status','received').select('id').single());
-    }
-    await audit(d,u.id,'owner.refund',order.id,{amount_cents:order.amount_cents,stripe_refund_id:refund.id,status:refund.status});return respond({ok:true,refund_status:refund.status});
-   }
+   if(action==='admin.refund')return respond({ok:true,refund_status:await refundOrder(d,u.id,body.id)});
   }
   fail('Acción desconocida.',404);
  }catch(e){console.error('market error',e);return asError(e);}
