@@ -18,9 +18,11 @@ export function localMapMarkup(es,offers){
 export function mountLocalMap(root,es,getQuery){
  const form=root.querySelector('form'),frame=root.querySelector('iframe'),status=root.querySelector('[role="status"]');
  let version=0;
- function show(area){
+ function show(area,pin=false){
   const q=[form.elements.category.value,form.elements.term.value.trim(),'near',area].filter(Boolean).join(' ');
-  frame.src='https://maps.google.com/maps?'+new URLSearchParams({q,output:'embed',hl:es?'es':'en'});
+  const match=area.match(/^(-?\d+(?:\.\d+)?),\s*(-?\d+(?:\.\d+)?)$/);
+  const center=match && Math.abs(Number(match[1]))<=90 && Math.abs(Number(match[2]))<=180 ? match[1]+','+match[2] : '';
+  frame.src='https://maps.google.com/maps?'+new URLSearchParams({q:pin && center?center:q,...(center?{ll:center,z:pin?'16':'14'}:{}),output:'embed',hl:es?'es':'en'});
   root.querySelector('[data-open-maps]').href='https://www.google.com/maps/search/?'+new URLSearchParams({api:'1',query:q});
  }
  function search(){version++;status.textContent='';show(form.elements.area.value.trim()||'Miami, FL');}
@@ -33,11 +35,12 @@ export function mountLocalMap(root,es,getQuery){
   status.textContent=es?'Buscando tu ubicación…':'Finding your location…';
   navigator.geolocation.getCurrentPosition(({coords})=>{
    if(ticket!==version||!root.isConnected)return;
-   const area=coords.latitude.toFixed(3)+', '+coords.longitude.toFixed(3);
+   const area=coords.latitude+', '+coords.longitude;
    form.elements.area.value=area;
-   status.textContent=es?'Mostrando negocios cerca de tu ubicación.':'Showing businesses near your location.';
-   show(area);
-  },fallback,{timeout:10000,maximumAge:60000});
+   const accuracy=Number.isFinite(coords.accuracy)?' (±'+Math.ceil(coords.accuracy)+' m)':'';
+   status.textContent=es?'Tu ubicación'+accuracy+'. Toca Buscar en el mapa para ver negocios cercanos.':'Your location'+accuracy+'. Tap Search map to find nearby businesses.';
+   show(area,true);
+  },fallback,{enableHighAccuracy:true,timeout:20000,maximumAge:0});
  });
  return mode=>{
   if(mode==='install'){form.elements.category.value='auto repair shop';form.elements.term.value='';}
