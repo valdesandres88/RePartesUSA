@@ -19,7 +19,7 @@ export function matchSupportTopic(input){
  return best;
 }
 
-export function supportPage({layout,language,email,esc}){
+export function supportPage({layout,language,email,esc,send}){
  const i=language==='es'?1:0,t=(en,es)=>i?es:en;
  const contact=/^[^\s@?&#]+@[^\s@?&#]+\.[^\s@?&#]+$/.test(email||'')
   ?`<a href="mailto:${esc(email)}">${esc(email)}</a>`:'<a href="#contact">'+t('Contact page','Página de contacto')+'</a>';
@@ -27,7 +27,24 @@ export function supportPage({layout,language,email,esc}){
  <form id="support-question"><label>${t('What do you need help with?','¿Con qué necesitas ayuda?')}<input name="question" type="search" maxlength="300" required placeholder="${t('For example, how do I upload a photo?','Por ejemplo, ¿cómo subo una foto?')}"></label><button class="primary">${t('Find an answer','Buscar respuesta')}</button></form>
  <div class="flex" id="support-topics">${topics.map((item,n)=>`<button type="button" data-topic="${n}">${item.label[i]}</button>`).join('')}</div>
  <div role="status" aria-live="polite" id="support-answer"></div>
+ <form id="support-send"><h2>${t('Message the team','Escribir al equipo')}</h2><label>Email<input name="email" type="email" autocomplete="email" required maxlength="254"></label><label>${t('Your message','Tu mensaje')}<textarea name="message" required minlength="3" maxlength="1000"></textarea></label><button class="primary">${t('Send message','Enviar mensaje')}</button><p role="status"></p></form>
  <p>${t('For personal assistance','Para atención personal')} · ${contact}</p></div></section>`);
+ const inbox=document.getElementById('support-send');
+ let requestId=crypto.randomUUID();
+ inbox.onsubmit=async event=>{
+  event.preventDefault();
+  const button=inbox.querySelector('button'),status=inbox.querySelector('[role="status"]');
+  if(button.disabled)return;
+  button.disabled=true;
+  const message=inbox.elements.message.value.trim();
+  try{
+   const result=await send({id:requestId,email:inbox.elements.email.value,message});
+   const topic=matchSupportTopic(message);
+   status.textContent=t('Automated reply: We received your message. Your reference is ','Respuesta automática: Recibimos tu mensaje. Tu referencia es ')+result.reference+'. '+(topic?topic.answer[i]:t('Our team can follow up using the email you provided.','El equipo puede responder al correo que indicaste.'));
+   inbox.reset();requestId=crypto.randomUUID();
+  }catch(error){status.textContent=error.message}
+  finally{button.disabled=false}
+ };
  const answer=document.getElementById('support-answer');
  function show(topic){
   answer.innerHTML=topic?`<h2>${topic.label[i]}</h2><p>${topic.answer[i]}</p>${topic.url?`<a class="secondary" href="${topic.url}">${t('Open this section','Abrir esta sección')}</a>`:''}`:

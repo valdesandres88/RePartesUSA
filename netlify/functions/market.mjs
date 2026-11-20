@@ -30,6 +30,19 @@ export async function handler(event){
    return respond(unwrap(await d.rpc('owner_live_website_analytics',{report_days:days})));
   }
   if(method==='POST'&&action==='quote.compare')return respond(await readPartQuotes(body?.token,d));
+  if(method==='POST'&&action==='support.send'){
+   const email=String(body.email||'').trim().toLowerCase(),message=String(body.message||'').trim(),id=String(body.id||'');
+   if(!/^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(id)||email.length>254||!/^\S+@[^\s@]+\.[^\s@]+$/.test(email)||message.length<3||message.length>1000)fail('Enter your email and a message of 3 to 1,000 characters.');
+   const existing=unwrap(await d.from('support_messages').select('email,message').eq('id',id).maybeSingle());
+   if(existing && (existing.email!==email||existing.message!==message))fail('Please reopen the support form.');
+   if(!existing){
+    const recent=unwrap(await d.from('support_messages').select('id').eq('email',email).gte('created_at',new Date(Date.now()-3600000).toISOString()).limit(4));
+    if(recent.length>=4)fail('Please try again in an hour.',429);
+    const saved=await d.from('support_messages').insert({id,email,message});
+    if(saved.error&&saved.error.code!=='23505')throw saved.error;
+   }
+   return respond({reference:id});
+  }
   if(method==='POST'&&action==='quote.submit')return respond(await submitPartRequest(body,d));
   if(method==='GET'&&action==='supplier-status'){
    await auth(event,d,{owner:true});
@@ -130,7 +143,8 @@ export async function handler(event){
     d.from('market_reviews').select('id,reviewer_id,subject,listing_id,order_id,rating,title,comment,status,created_at').order('created_at',{ascending:false}).limit(150)
    ]);
    const returnRows=unwrap(returns),referralRows=unwrap(referrals);
-   return respond({metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,commission_bps:isPlatformSeller(s.user_id)?0:s.commission_bps,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows,referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>x.qualified).length,rewards_enabled:true},reviews:unwrap(reviews)});
+   const support=unwrap(await d.from('support_messages').select('id,email,message,created_at').order('created_at',{ascending:false}).limit(100));
+   return respond({support,metrics:unwrap(metrics),listings:unwrap(listings),sellers:unwrap(sellers).map(({stripe_account_id,...s})=>({...s,commission_bps:isPlatformSeller(s.user_id)?0:s.commission_bps,connect_configured:isPlatformSeller(s.user_id)||Boolean(stripe_account_id),is_platform_store:isPlatformSeller(s.user_id)})),orders:unwrap(orders),users:unwrap(users),settings:unwrap(settings),audit:unwrap(audits),returns:returnRows,referrals:referralRows,referral_stats:{registered:referralRows.length,qualified:referralRows.filter(x=>x.qualified).length,rewards_enabled:true},reviews:unwrap(reviews)});
 
   }
   if(method!=='POST')fail('Método no permitido.',405);
