@@ -206,7 +206,7 @@ const partsByYear = {
 };
 
 const pageSize=10;
-const parts=Object.entries(partsByYear).flatMap(([year,entries])=>entries.map(([name,description])=>({year,name,description})));
+export const parts=Object.entries(partsByYear).flatMap(([year,entries])=>entries.map(([name,description])=>({year,name,description})));
 const pageCount=Math.ceil(parts.length/pageSize);
 
 function pageUrl(page,vehicle){
@@ -220,9 +220,9 @@ export function amazonPartsPage({layout,esc,pageId,vehicleId}){
  let vehicle='';
  try{vehicle=decodeURIComponent(vehicleId||'').trim().slice(0,100)}catch{}
  const start=(page-1)*pageSize;
- const cards=parts.slice(start,start+pageSize).map(({year,name,description})=>{
+ const cards=parts.slice(start,start+pageSize).map(({year,name,description},index)=>{
   const url='https://www.amazon.com/s?k='+encodeURIComponent(['automotive',name,vehicle].filter(Boolean).join(' '))+'&tag=andresvalde06-20';
-  return `<article class="offer-card amazon-part-card"><div class="offer-kind">${year}</div><h2>${esc(name)}</h2><p>${esc(description)}</p><p class="amazon-stock">Stock quantity: Check on Amazon</p><a class="secondary" href="${esc(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">Check price and availability ↗</a></article>`;
+  return `<article class="offer-card amazon-part-card"><div class="offer-kind">${year}</div><h2>${esc(name)}</h2><p>${esc(description)}</p><p class="amazon-stock">Stock quantity: Check on Amazon</p><a class="secondary" href="${esc(url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">Check price and availability ↗</a><details class="amazon-live" data-part="${start+index}"><summary>See product photos</summary><div class="amazon-live-results" aria-live="polite"></div></details></article>`;
  }).join('');
  const numbers=Array.from({length:pageCount},(_,index)=>{
   const number=index+1;
@@ -232,6 +232,27 @@ export function amazonPartsPage({layout,esc,pageId,vehicleId}){
  layout(`<section class="section amazon-parts"><h1>Amazon Auto Parts Guide</h1>${back}<p>Explore maintenance and repair categories for 2026 and 2027. Confirm fitment and stock for the specific listing before ordering.</p><p>As an Amazon Associate I earn from qualifying purchases.</p>
  <form id="amazon-vehicle" class="amazon-vehicle"><label for="amazon-vehicle-query">Car or truck (year, make, model and engine)</label><input id="amazon-vehicle-query" name="vehicle" type="search" maxlength="100" value="${esc(vehicle)}" placeholder="Example: 2011 Ram 1500 5.7L"><button class="primary" type="submit">Apply vehicle</button></form>
  <div class="offer-grid amazon-parts-grid">${cards}</div><nav class="amazon-pagination" aria-label="Amazon auto parts pages">${numbers}</nav></section>`,{showBack:false});
+ for(const section of document.querySelectorAll('.amazon-live')){
+  section.addEventListener('toggle',async()=>{
+   if(!section.open||section.dataset.state)return;
+   const result=section.querySelector('.amazon-live-results');
+   section.dataset.state='loading';
+   result.textContent='Loading products from Amazon…';
+   try{
+    const query=new URLSearchParams({part:section.dataset.part,vehicle});
+    const response=await fetch('/.netlify/functions/amazon-parts?'+query,{signal:AbortSignal.timeout(14000)});
+    const data=await response.json();
+    if(!response.ok)throw Error();
+    section.dataset.state='loaded';
+    if(data.status!=='ok'){result.textContent='Open Amazon above to see current product photos.';return}
+    if(!data.products.length){result.textContent='No results with product photos. Try the Amazon search above.';return}
+    result.innerHTML=data.products.map(product=>`<a href="${esc(product.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click"><img loading="lazy" src="${esc(product.photo)}" alt=""><span>${esc(product.title)}</span></a>`).join('');
+   }catch{
+    delete section.dataset.state;
+    result.textContent='Product photos are temporarily unavailable. Reopen this section to try again.';
+   }
+  });
+ }
  const form=document.getElementById('amazon-vehicle');
  form?.addEventListener('submit',event=>{
   event.preventDefault();
