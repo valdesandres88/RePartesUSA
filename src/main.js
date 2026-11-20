@@ -18,6 +18,15 @@ const pagePath=location.pathname.replace(/\/$/,'');
 const isOwnerPage=pagePath===ownerPath;
 const isQuotePage=pagePath===quotePath;
 const marketplaceRoute=()=>(location.hash||'#home').slice(1).split('/');
+function sharedSearch(){
+ const [page,mode,encoded]=marketplaceRoute();
+ if(page!=='catalog'||!['search','oem'].includes(mode)||!encoded)return null;
+ try{
+  const query=decodeURIComponent(encoded).trim().slice(0,150);
+  return query?{query,byNumber:mode==='oem'}:null;
+ }catch{return null;}
+}
+
 
 const cfg=import.meta.env;
 let currentLanguage=getLanguage();
@@ -224,6 +233,11 @@ function marketplaceSearchLinks(){
  return `<h2>${es?'Buscar en otras tiendas':'Search other stores'}</h2><p>${es?'Compara resultados para':'Compare results for'} “${esc(query)}”. ${es?'Consulta precio y disponibilidad en cada tienda. Podemos ganar una comisión por compras en Amazon.':'Check prices and availability at each store. We may earn a commission from qualifying Amazon purchases.'}</p><div class="flex">${links.join(' ')}</div>`;
 }
 function updateCatalogResults(){
+ const share=document.getElementById('catalog-share');
+ if(share){
+  share.hidden=!S.q.trim();
+  share.querySelector('[role="status"]').textContent='';
+ }
  const links=document.getElementById('marketplace-search');if(links)links.innerHTML=marketplaceSearchLinks();
  const area=document.getElementById('catalog-results');if(area){area.innerHTML=catalogResults();localize(area,currentLanguage);}
 }
@@ -319,6 +333,10 @@ function home(){
    </div>
   </section>
   <section class="section shop-catalog" id="catalog" aria-label="${currentLanguage==='es'?'Catálogo de piezas':'Parts catalog'}">
+   <div id="catalog-share" class="flex" ${S.q.trim()?'':'hidden'}>
+    <button type="button" data-copy-search>${currentLanguage==='es'?'Copiar enlace de búsqueda':'Copy search link'}</button>
+    <span role="status"></span>
+   </div>
    <div id="partner-results" aria-live="polite"></div>
    <div id="catalog-results">${catalogResults()}</div>
    <section class="panel" id="marketplace-search">${marketplaceSearchLinks()}</section>
@@ -334,6 +352,7 @@ function home(){
   <section class="section"><h2>Website reviews</h2><p><a class="primary" href="#feedback">Rate the website</a></p>${showReviews()}</section>`,{showBack:false});
  openLocalMap=mountLocalMap(document.getElementById('local-map'),currentLanguage==='es',()=>S.q);
  if(marketplaceRoute()[1]==='map')openLocalMap('browse');
+ if(sharedSearch())document.getElementById('catalog')?.scrollIntoView();
  void updatePartnerResults();
 }
 
@@ -567,6 +586,8 @@ async function route(){
   if(version!==current)return;
   if(p==='careers'){layout(careersPage(currentLanguage));return;}
   if(p==='contact'&&id==='support'){supportPage({layout,send:data=>api('support.send','POST',data),language:currentLanguage,email:S.site?.settings?.support_email,esc});return;}
+  const shared=p==='catalog'?sharedSearch():null;
+  if(shared){S.q=shared.query;S.searchByNumber=shared.byNumber;}
   if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts'){amazonPartsPage({layout,esc,pageId:id,vehicleId:marketplaceRoute()[2]});window.scrollTo(0,0);}else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
  }catch(err){if(version!==current)return;layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
@@ -679,6 +700,25 @@ document.addEventListener('click',ev=>{
  setPartNumberMode(false);
  S.q=button.dataset.searchTerm;document.getElementById('search').value=S.q;
  updateCatalogResults();updatePartnerResults(true);document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});
+});
+document.addEventListener('click',async event=>{
+ const button=event.target.closest('[data-copy-search]');
+ if(!button||!S.q.trim())return;
+ const status=button.parentElement.querySelector('[role="status"]');
+ const es=currentLanguage==='es';
+ const url=new URL('/',location.origin);
+ url.hash='catalog/'+(S.searchByNumber?'oem':'search')+'/'+encodeURIComponent(S.q.trim());
+ try{
+  await navigator.clipboard.writeText(url.href);
+  status.textContent=es?'Enlace copiado.':'Link copied.';
+ }catch{
+  const field=document.createElement('input');
+  field.readOnly=true;
+  field.value=url.href;
+  field.setAttribute('aria-label',es?'Enlace de búsqueda':'Search link');
+  status.replaceChildren(field);
+  field.select();
+ }
 });
 document.addEventListener('submit',ev=>{if(ev.target.id!=='part-search')return;ev.preventDefault();S.q=document.getElementById('search').value;updateCatalogResults();updatePartnerResults(true);document.getElementById('catalog')?.scrollIntoView({behavior:'smooth'});});
 document.addEventListener('submit',async ev=>{

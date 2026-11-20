@@ -305,3 +305,7 @@
 .amazon-live-results{display:grid;gap:8px}
 .amazon-live-results a{display:grid;grid-template-columns:64px minmax(0,1fr);align-items:center;gap:8px;padding:6px;border:1px solid var(--line);border-radius:8px;font-size:.82rem;overflow-wrap:anywhere}
 .amazon-live-results img{width:64px;height:64px;object-fit:contain;background:#fff}
+
+#catalog-share{margin-bottom:14px}
+#catalog-share[hidden]{display:none}
+#catalog-share button{min-height:44px}
