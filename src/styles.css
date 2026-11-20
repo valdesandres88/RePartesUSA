@@ -218,3 +218,19 @@
 .connector-photos figure{margin:0;min-width:0}
 .connector-photos figure img{width:100%;aspect-ratio:1;object-fit:contain;border:1px solid var(--line);border-radius:10px;background:#f4f7f6}
 .connector-photos figcaption{font-size:.875rem;margin-top:6px}
+
+.header.market-header{position:relative;z-index:5;display:flex;flex-direction:row;flex-wrap:wrap;align-items:center;justify-content:flex-start;gap:12px;background:#102f2b;color:white;border-bottom:3px solid #badf65;padding-block:12px}
+.market-header .logo{margin-right:auto;color:#fff}
+.market-header .logo em{color:#b4ef8c}
+.market-header .request-launcher{margin:0;background:#ddf675;color:#18362c;border:0;min-height:44px}
+.market-menu summary{display:flex;align-items:center;gap:7px;min-height:44px;padding:0 13px;border:1px solid #72908a;border-radius:12px;cursor:pointer;font-weight:700;list-style:none}
+.market-menu summary::-webkit-details-marker{display:none}
+.market-menu[open] summary{background:#275448}
+.market-menu:not([open]) nav{display:none}
+.market-header .market-menu nav{position:absolute;right:12px;top:100%;width:min(580px,calc(100% - 24px));max-height:70vh;overflow:auto;display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:12px;background:#fff;color:#193c33;padding:16px;border:1px solid #bed4c6;border-radius:0 0 16px 16px;box-shadow:0 12px 28px #102f2b30}
+.market-menu nav section{display:grid;align-content:start;gap:3px}
+.market-menu nav section:last-child{grid-column:1/-1;border-top:1px solid #dae7df;padding-top:10px}
+.market-menu nav strong{color:#386b56;font-size:.82rem;letter-spacing:.025em}
+.market-header .market-menu nav a,.market-menu nav button{display:flex;align-items:center;min-height:44px;padding:6px 10px;color:#18382e;background:#f1f6f2;border-radius:8px;text-align:left}
+.market-menu nav .language-label{justify-self:start;margin:0}
+@media(max-width:540px){.header.market-header{padding:10px;gap:6px}.market-header .logo{font-size:clamp(14px,4vw,20px);gap:3px}.market-header .request-launcher,.market-menu summary{padding-inline:8px;font-size:13px}}
