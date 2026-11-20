@@ -272,9 +272,30 @@ export async function handler(event){
    const condition=exactStatus(body.condition,['used','remanufactured','new']);
    const year_min=positiveInt(body.year_min,1950,2100),year_max=positiveInt(body.year_max,1950,2100);
    if(year_min>year_max||title.length<5||description.length<15||!make||!model)fail('Completa correctamente los datos de compatibilidad y descripción.');
-   const dollars=String(body.price).trim();if(!/^(0|[1-9]\d{0,5})(\.\d{1,2})?$/.test(dollars))fail('Precio inválido.');
-   const price_cents=Math.round(Number(dollars)*100);if(price_cents<1000||price_cents>10000000)fail('Precio permitido: $10 a $100,000.');
-   const data={title,description,make,model,year_min,year_max,condition,part_number:str(body.part_number,100),image_url,price_cents,status:'pending',seller_has_item:true,original_photo_attested:true,inventory_verified_by_owner:false,verified_at:null,public_contact_enabled,contact_email,contact_phone,updated_at:new Date().toISOString()};
+   const part_number=str(body.part_number,100);
+   let price_cents,comparable_sellers=0;
+   if(body.auto_price===true){
+    if(!/^[a-z0-9][a-z0-9 .-]{2,99}$/i.test(part_number))fail('Enter a valid OEM part number to calculate a price.');
+    const comparable=unwrap(await d.from('listings').select('seller_id,price_cents')
+     .ilike('part_number',part_number).eq('condition',condition).eq('inventory_verified_by_owner',true)
+     .in('status',['approved','sold']).neq('seller_id',u.id)
+     .lte('year_min',year_max).gte('year_max',year_min).order('updated_at',{ascending:false}).limit(100));
+    const pricesBySeller=new Map();
+    for(const row of comparable){
+     if(Number.isInteger(row.price_cents)&&row.price_cents>=1000&&row.price_cents<=10000000&&!pricesBySeller.has(row.seller_id))pricesBySeller.set(row.seller_id,row.price_cents);
+    }
+    const prices=[...pricesBySeller.values()].sort((a,b)=>a-b);
+    comparable_sellers=prices.length;
+    if(comparable_sellers<3)fail('We need matching prices from at least three other verified sellers. Enter a price manually for this part.');
+    const middle=Math.floor(prices.length/2);
+    price_cents=prices.length%2?prices[middle]:Math.round((prices[middle-1]+prices[middle])/2);
+   }else{
+    const dollars=String(body.price).trim();
+    if(!/^(0|[1-9]\d{0,5})(\.\d{1,2})?$/.test(dollars))fail('Precio inválido.');
+    price_cents=Math.round(Number(dollars)*100);
+    if(price_cents<1000||price_cents>10000000)fail('Precio permitido: $10 a $100,000.');
+   }
+   const data={title,description,make,model,year_min,year_max,condition,part_number,image_url,price_cents,status:'pending',seller_has_item:true,original_photo_attested:true,inventory_verified_by_owner:false,verified_at:null,public_contact_enabled,contact_email,contact_phone,updated_at:new Date().toISOString()};
    if(body.id){
     const prev=unwrap(await d.from('listings').select('status').eq('id',body.id).eq('seller_id',u.id).single());
     if(!['pending','approved','rejected'].includes(prev.status))fail('No puedes modificar una pieza ya vendida o reservada.');
@@ -282,7 +303,7 @@ export async function handler(event){
    }else{
     const r=unwrap(await d.from('listings').insert({...data,seller_id:u.id}).select('id').single());body.id=r.id;
    }
-   await audit(d,u.id,'listing.submitted',body.id);return respond({ok:true,id:body.id});
+   await audit(d,u.id,'listing.submitted',body.id,{price_cents,comparable_sellers});return respond({ok:true,id:body.id,price_cents,comparable_sellers});
   }
   if(action==='listing.withdraw'){
    const listing=unwrap(await d.from('listings').select('id,status').eq('id',body.id).eq('seller_id',u.id).single());
