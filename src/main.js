@@ -166,7 +166,22 @@ function catalogResults(){
  const offerCard=x=>`<article class="offer-card"><div class="offer-kind">${x.kind==='affiliate'?'Affiliate link':'Sponsored placement'}</div><h3>${esc(x.title)}</h3><p>${esc(x.description)}</p><a class="secondary" href="${esc(x.url)}" target="_blank" rel="sponsored nofollow noopener noreferrer" data-analytics-link="partner_click">View on partner website ↗</a><small>Check current price, availability and vehicle fitment with the provider.</small></article>`;
  return `<p class="search-count" role="status">${listings.length} seller listing${listings.length===1?'':'s'} · ${offers.length} partner offer${offers.length===1?'':'s'}${S.q?' matching “'+esc(S.q)+'”':''}</p>${listings.length?'<h3>Seller inventory</h3><div class="grid">'+listings.map(listingCard).join('')+'</div>':''}${S.searchByNumber?donorVehicles(listings,S.q,esc):''}${offers.length?'<h3>Partner offers</h3><p>RePartes USA may earn a commission from qualifying purchases through affiliate links, at no extra charge to you. Purchases are completed on the partner website.</p><div class="offer-grid">'+offers.map(offerCard).join('')+'</div>':''}`;
 }
+function marketplaceSearchLinks(){
+ const query=S.q.trim()||'auto parts';
+ const es=currentLanguage==='es';
+ const stores=[
+  ['Amazon','https://www.amazon.com/s', {k:query,i:'automotive',tag:'andresvalde06-20'}],
+  ['eBay Motors','https://www.ebay.com/sch/i.html',{_nkw:query,_sacat:'6000'}],
+  ['Walmart','https://www.walmart.com/search',{q:query}]
+ ];
+ const links=stores.map(([name,base,params])=>{
+  const href=base+'?'+new URLSearchParams(params);
+  return `<a class="secondary" href="${esc(href)}" target="_blank" rel="noopener noreferrer${name==='Amazon'?' sponsored':''}" data-analytics-link="partner_click">${name} ↗</a>`;
+ });
+ return `<h2>${es?'Buscar en otras tiendas':'Search other stores'}</h2><p>${es?'Compara resultados para':'Compare results for'} “${esc(query)}”. ${es?'Consulta precio y disponibilidad en cada tienda. Podemos ganar una comisión por compras en Amazon.':'Check prices and availability at each store. We may earn a commission from qualifying Amazon purchases.'}</p><div class="flex">${links.join(' ')}</div>`;
+}
 function updateCatalogResults(){
+ const links=document.getElementById('marketplace-search');if(links)links.innerHTML=marketplaceSearchLinks();
  const area=document.getElementById('catalog-results');if(area){area.innerHTML=catalogResults();localize(area,currentLanguage);}
 }
 function setPartnerResults(area,markup){
@@ -258,6 +273,7 @@ function home(){
   <section class="section shop-catalog" id="catalog" aria-label="${currentLanguage==='es'?'Catálogo de piezas':'Parts catalog'}">
    <div id="partner-results" aria-live="polite"></div>
    <div id="catalog-results">${catalogResults()}</div>
+   <section class="panel" id="marketplace-search">${marketplaceSearchLinks()}</section>
   </section>
   ${localMapMarkup(currentLanguage==='es',commercialOffers('map'))}
   <aside class="section seller-invite"><div><h2>Amazon Auto Parts Guide</h2><p>Explore 50 maintenance and repair categories for 2026 and 2027.</p></div><a class="primary" href="#amazon-parts">Browse Amazon Auto Parts</a></aside>
