@@ -39,8 +39,8 @@ export function supportPage({layout,language,email,esc,send}){
   const message=inbox.elements.message.value.trim();
   try{
    const result=await send({id:requestId,email:inbox.elements.email.value,message});
-   const topic=matchSupportTopic(message);
-   status.textContent=t('Automated reply: We received your message. Your reference is ','Respuesta automática: Recibimos tu mensaje. Tu referencia es ')+result.reference+'. '+(topic?topic.answer[i]:t('Our team can follow up using the email you provided.','El equipo puede responder al correo que indicaste.'));
+   const topic=result.auto_reply?matchSupportTopic(message):null;
+   status.textContent=t('We received your message. Your reference is ','Recibimos tu mensaje. Tu referencia es ')+result.reference+'. '+(topic?topic.answer[i]:t('Our team can follow up using the email you provided.','El equipo puede responder al correo que indicaste.'));
    inbox.reset();requestId=crypto.randomUUID();
   }catch(error){status.textContent=error.message}
   finally{button.disabled=false}
