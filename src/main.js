@@ -588,7 +588,10 @@ async function route(){
   if(p==='contact'&&id==='support'){supportPage({layout,send:data=>api('support.send','POST',data),language:currentLanguage,email:S.site?.settings?.support_email,esc});return;}
   const shared=p==='catalog'?sharedSearch():null;
   if(shared){S.q=shared.query;S.searchByNumber=shared.byNumber;}
-  if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts'){amazonPartsPage({layout,esc,pageId:id,vehicleId:marketplaceRoute()[2]});window.scrollTo(0,0);}else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p))publicInfo(p==='legal'?'terms':p);else home();
+  if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts'){amazonPartsPage({layout,esc,pageId:id,vehicleId:marketplaceRoute()[2]});window.scrollTo(0,0);}else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p)){
+   publicInfo(p==='legal'?'terms':p);
+   if(p==='about')window.scrollTo({top:0,behavior:'instant'});
+  }else home();
  }catch(err){if(version!==current)return;layout('<section class="section empty"><h2>La operación no se pudo completar</h2><p>'+esc(err.message)+'</p><button data-act="retry">Reintentar</button></section>')}
 }
 async function refreshIdentity(){
