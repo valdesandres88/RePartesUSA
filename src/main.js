@@ -495,13 +495,12 @@ function owner(){
  stopOwnerAnalytics=mountOwnerAnalytics(document.getElementById('owner-analytics'),{api,language:currentLanguage,esc});
 }
 function publicInfo(kind){
- const email=S.site?.settings?.support_email||'';
- const support=email?'<a href="mailto:'+esc(email)+'">'+esc(email)+'</a>':'Correo de soporte pendiente de publicación';
+ const support='<a href="#contact">centro de ayuda</a>';
  const pages={
   advertising:{title:'Publicidad, patrocinadores y enlaces de afiliados',sections:[
    '<h2>Publicidad y enlaces comerciales</h2><p>RePartes USA puede mostrar publicidad automática de Google AdSense una vez que su sitio y cuenta sean aprobados. Los anuncios automáticos son gestionados por Google y pueden utilizar tecnologías de medición y personalización conforme a los requisitos legales aplicables y a los controles de consentimiento.</p>',
    '<h2>Enlaces de afiliados y patrocinios</h2><p>Los enlaces comerciales llevan etiquetas como Affiliate link o Sponsored placement. Podríamos recibir comisiones por compras elegibles realizadas en sitios externos a través de nuestros enlaces de afiliados o compensación por patrocinios contratados. El precio, la garantía y las condiciones de compra del comercio externo son responsabilidad de ese comercio. No publicamos patrocinadores que no existen.</p>',
-   '<h2>Colaboraciones comerciales</h2><p>Para consultar una colaboración o propuesta de patrocinio, escribe a %%EMAIL%%. La aceptación y los términos de cualquier acuerdo deben verificarse antes de publicar un anuncio.</p>',
+   '<h2>Colaboraciones comerciales</h2><p>Para consultar una colaboración o propuesta de patrocinio, escríbenos desde el %%SUPPORT%%. La aceptación y los términos de cualquier acuerdo deben verificarse antes de publicar un anuncio.</p>',
    '<h2>Independencia y privacidad</h2><p>Un anuncio no es una garantía ni una verificación de compatibilidad de una pieza. Nunca solicitamos que un visitante haga clic en un anuncio para ayudarnos económicamente. Consulta nuestro aviso de privacidad y los ajustes disponibles en los proveedores externos.</p>'
   ]},
   about:{title:'Sobre RePartes USA',sections:[
@@ -509,26 +508,21 @@ function publicInfo(kind){
    '<h2>¿Cómo funciona?</h2><p>Los vendedores solicitarán acceso, publicarán la información de sus piezas y estarán sujetos a revisión de anuncios. Los compradores podrán buscar por marca, modelo, compatibilidad y número de pieza. Cuando se habiliten las compras, los precios se mostrarán en dólares estadounidenses (USD) y los pagos se procesarán mediante Stripe.</p>',
    '<h2>Estado de lanzamiento</h2><p>Actualmente, RePartes USA está preparando su operación comercial. No está aceptando pagos ni pedidos nuevos. No anunciamos productos o vendedores inexistentes como si estuvieran disponibles.</p>'
   ]},
-  contact:{title:'Contacto y atención al cliente',sections:[
-   '<h2>Comunícate con RePartes USA</h2><p>Para consultas sobre anuncios, el funcionamiento del marketplace, privacidad, reportes de vendedores o futuros pedidos, escribe a: <strong>%%EMAIL%%</strong>.</p>',
-   '<h2>Compras y reclamos</h2><p>Las compras están temporalmente desactivadas. Cuando comiencen las operaciones, este mismo canal permitirá iniciar solicitudes de soporte sobre órdenes, incidencias de envío y reclamos. No se ha publicado una línea telefónica ni un horario de atención.</p>',
-   '<h2>Información comercial</h2><p>Nombre de la plataforma: RePartes USA. Operación prevista: marketplace de autopartes para clientes en Estados Unidos. Moneda prevista: USD. Antes de comenzar a cobrar se completarán los datos exigidos para la verificación empresarial.</p>'
-  ]},
   shipping:{title:'Envíos, devoluciones y reembolsos',sections:[
    '<h2>Política de devoluciones: 30 días desde la entrega</h2><p>RePartes USA permitirá solicitar una devolución durante los <strong>30 días naturales posteriores a la entrega confirmada</strong> de cada pieza. El plazo comienza al día siguiente de la fecha de entrega indicada por el transportista. Esta política aplicará a las compras efectuadas cuando la tienda comience a operar.</p>',
-   '<h2>Cómo solicitar una devolución</h2><p>Antes de enviar una pieza de vuelta, escribe a <strong>%%EMAIL%%</strong> con el número de pedido, nombre de la pieza, fecha de entrega, motivo de la devolución y fotografías si existe daño o discrepancia. El equipo revisará la solicitud y proporcionará instrucciones y una dirección de devolución. No envíes piezas a ninguna dirección sin instrucciones.</p>',
+   '<h2>Cómo solicitar una devolución</h2><p>Antes de enviar una pieza de vuelta, escríbenos desde el %%SUPPORT%% con el número de pedido, nombre de la pieza, fecha de entrega, motivo de la devolución e indica si tienes fotos del daño o la discrepancia. El equipo revisará la solicitud y proporcionará instrucciones y una dirección de devolución. No envíes piezas a ninguna dirección sin instrucciones.</p>',
    '<h2>Condiciones para que la devolución sea aceptada</h2><p>Para devoluciones por cambio de opinión o compra equivocada, la pieza debe conservarse sin instalar, sin modificaciones y en condiciones equivalentes a las recibidas, permitiendo una revisión razonable. Conserva los accesorios suministrados. Las piezas incorrectas, dañadas al llegar, defectuosas o que no coincidan con el anuncio podrán reclamarse dentro del mismo plazo, incluso cuando el defecto se descubra durante una instalación razonable y documentada. Cada caso será revisado con la evidencia disponible; esta política no limita derechos obligatorios del consumidor.</p>',
    '<h2>¿Quién paga el envío de regreso?</h2><p><strong>Producto equivocado, dañado al llegar, defectuoso o distinto a lo anunciado:</strong> el vendedor asumirá los costos razonables de la devolución autorizada; las instrucciones se proporcionarán por el canal de soporte. <strong>Cambio de opinión, compra incorrecta o incompatibilidad no atribuible a un error del anuncio:</strong> el comprador paga el envío de regreso. No se aplicará una tarifa adicional de reposición por una devolución aprobada.</p>',
    '<h2>Plazo para enviar la pieza y recibir el reembolso</h2><p>Tras recibir la autorización, el comprador deberá despachar la devolución dentro de los siguientes <strong>14 días naturales</strong>, salvo que el soporte indique otro plazo por escrito. Una vez recibida e inspeccionada la pieza, si la devolución cumple la política, se iniciará el reembolso al <strong>método de pago original</strong> dentro de 10 días hábiles. La llegada del dinero a la cuenta del comprador depende también de su banco o emisor. Para productos incorrectos, defectuosos o que no coincidan con el anuncio, el importe reembolsado incluirá el precio total pagado por ese artículo.</p>',
    '<h2>Envíos y seguimiento</h2><p>Los vendedores independientes serán responsables de embalar correctamente las piezas, organizar el envío permitido legalmente y proporcionar seguimiento verificable. El precio de cada artículo deberá reflejar el costo de envío anunciado. Las fechas y restricciones de entrega aplicables se informarán antes de autorizar el cobro; no garantizamos actualmente un tiempo fijo de envío.</p>',
-   '<h2>Estado actual: pagos desactivados</h2><p>RePartes USA está en prelanzamiento y todavía <strong>no acepta compras ni procesa devoluciones reales</strong>. Esta política ya define el compromiso de 30 días, pero la operación de atención, seguimiento y reembolsos deberá probarse antes de habilitar pagos. Si necesitas información, escribe a %%EMAIL%%.</p>'
+   '<h2>Estado actual: pagos desactivados</h2><p>RePartes USA está en prelanzamiento y todavía <strong>no acepta compras ni procesa devoluciones reales</strong>. Esta política ya define el compromiso de 30 días, pero la operación de atención, seguimiento y reembolsos deberá probarse antes de habilitar pagos. Si necesitas información, escríbenos desde el %%SUPPORT%%.</p>'
   ]},
   privacy:{title:'Aviso de privacidad',sections:[
    '<h2>Medición del sitio</h2><p>Medimos visitas, tipos de página, acciones y origen general del tráfico con un identificador aleatorio guardado en la pestaña. La medición guarda el tipo de dispositivo y la hora, sin guardar direcciones IP, términos escritos en el buscador, datos de cuenta ni enlaces privados en los registros de Analytics. El sistema respeta Global Privacy Control y Do Not Track. Los registros de tráfico se conservan hasta 120 días, con limpieza diaria.</p>',
    '<h2>Part requests</h2><p>When you request a part, we store your vehicle details, requested part, name, email, optional ZIP code and optional phone so RePartes USA can review and respond to your inquiry. These requests are private to the Owner. Unfinished forms are saved on your device for up to 7 days and can be cleared using Clear saved draft. A request is not an order and does not guarantee availability or compatibility.</p>',
    '<h2>Información tratada por la plataforma</h2><p>Para operar las cuentas, anuncios y posibles compras, el servicio puede tratar datos proporcionados por los usuarios como correo electrónico, nombre de perfil, detalles de piezas, datos de envío y seguimiento, así como registros técnicos y de seguridad necesarios para prestar el servicio.</p>',
    '<h2>Proveedores tecnológicos</h2><p>El servicio utiliza Supabase para cuentas y datos de la plataforma y Netlify para alojar el sitio y las funciones del servidor. Cuando se activen pagos, Stripe gestionará el procesamiento de las transacciones. RePartes USA no solicita que los compradores escriban el número completo de su tarjeta en formularios propios.</p>',
-   '<h2>Finalidad y solicitudes</h2><p>Los datos se utilizan para administrar el servicio, responder consultas, gestionar transacciones y proteger la integridad de las cuentas. Para consultas sobre datos personales, acceso, correcciones o solicitudes de eliminación, escribe a %%EMAIL%%. Algunas solicitudes pueden estar sujetas a obligaciones de conservación legales o de seguridad.</p>',
+   '<h2>Finalidad y solicitudes</h2><p>Los datos se utilizan para administrar el servicio, responder consultas, gestionar transacciones y proteger la integridad de las cuentas. Para consultas sobre datos personales, acceso, correcciones o solicitudes de eliminación, escríbenos desde el %%SUPPORT%%. Algunas solicitudes pueden estar sujetas a obligaciones de conservación legales o de seguridad.</p>',
    '<h2>Publicidad, tecnologías y consentimiento</h2><p>Si se activa Google AdSense, Google y sus socios pueden usar cookies u otras tecnologías para publicar, limitar, medir o personalizar anuncios conforme a sus políticas y a la configuración de privacidad y consentimiento aplicable. Los enlaces identificados como afiliados o patrocinados pueden redirigir a sitios externos con sus propias políticas y mecanismos de seguimiento. La publicidad se activa únicamente mediante una configuración expresa del Owner. Antes de habilitar publicidad dirigida, la plataforma deberá configurar avisos y opciones de privacidad apropiados, incluido el consentimiento cuando sea exigible.</p>',
    '<h2>Información pendiente de completar</h2><p>Este aviso es inicial. Antes del lanzamiento público comercial se deberá completar y revisar la política de retención de datos, cookies, destinatarios, derechos aplicables y cualquier otro requisito legal de las jurisdicciones donde opere la plataforma.</p>'
   ]},
@@ -536,11 +530,11 @@ function publicInfo(kind){
    '<h2>Naturaleza de la plataforma</h2><p>RePartes USA está diseñado para facilitar el contacto y las futuras transacciones entre compradores y vendedores independientes de autopartes. No se afirma que la plataforma sea fabricante, proveedor o garante de las piezas anunciadas por terceros.</p>',
    '<h2>Obligaciones de los vendedores</h2><p>Los anuncios deben describir las piezas de forma veraz, identificar su condición y compatibilidad y acreditar su legítima procedencia. No se permitirán artículos robados, falsificados, prohibidos por ley, peligrosos o no autorizados para su venta o transporte. RePartes USA podrá retirar publicaciones que incumplan las reglas aplicables.</p>',
    '<h2>Condiciones de compra y devoluciones</h2><p>Todos los precios se expresarán en dólares estadounidenses (USD). Una vez habilitadas las compras, se permitirá solicitar devoluciones durante los <strong>30 días naturales posteriores a la entrega confirmada</strong>, conforme a las condiciones, responsabilidades de envío y procedimiento descritos en la <a href="#shipping">política de envíos y devoluciones</a>. Las compras siguen desactivadas hasta completar las condiciones comerciales, los controles operativos y la verificación de Stripe.</p>',
-   '<h2>Atención</h2><p>Las consultas sobre la plataforma se pueden dirigir a %%EMAIL%%. Este documento se encuentra en preparación para su revisión antes de iniciar operaciones comerciales.</p>'
+   '<h2>Atención</h2><p>Las consultas sobre la plataforma se pueden enviar desde el %%SUPPORT%%. Este documento se encuentra en preparación para su revisión antes de iniciar operaciones comerciales.</p>'
   ]}
  };
  const p=pages[kind]||pages.terms;
- const body=p.sections.join('').replaceAll('%%EMAIL%%',support);
+ const body=p.sections.join('').replaceAll('%%SUPPORT%%',support);
  layout('<section class="section"><div class="eyebrow">INFORMACIÓN DEL MARKETPLACE</div><h1>'+esc(p.title)+'</h1><div class="panel policy-copy">'+body+'</div></section>');
 }
 let version=0;
@@ -566,7 +560,7 @@ async function route(){
  layout('<section class="section"><h2>Cargando datos…</h2></section>');
  try{
   if(['orders','sell','return','review'].includes(p)&&S.session)S.mine=await api('mine');
-  if(!isOwnerPage&&!S.site&&['home','catalog','part','contact',''].includes(p))await loadPublicCatalog();
+  if(!isOwnerPage&&!S.site&&['home','catalog','part',''].includes(p))await loadPublicCatalog();
   if(['home','catalog',''].includes(p)||(p==='part'&&id)){
    const reviewQuery=p==='part'?{scope:'part',listing_id:id}:{scope:'website'};
    const reviews=await api('reviews','GET',reviewQuery).catch(()=>null);
@@ -584,10 +578,14 @@ async function route(){
   }
   if(version!==current)return;
   if(p==='careers'){layout(careersPage(currentLanguage));return;}
-  if(p==='contact'&&id==='support'){supportPage({layout,send:data=>api('support.send','POST',data),language:currentLanguage,email:S.site?.settings?.support_email,esc});return;}
+  if(p==='contact'){
+   supportPage({layout,send:data=>api('support.send','POST',data),language:currentLanguage});
+   window.scrollTo({top:0,behavior:'instant'});
+   return;
+  }
   const shared=p==='catalog'?sharedSearch():null;
   if(shared){S.q=shared.query;S.searchByNumber=shared.byNumber;}
-  if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts'){amazonPartsPage({layout,esc,pageId:id,vehicleId:marketplaceRoute()[2]});window.scrollTo(0,0);}else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','contact','shipping','privacy','terms','legal','advertising'].includes(p)){
+  if(p==='home'||p==='catalog'||!p)home();else if(p==='amazon-parts'){amazonPartsPage({layout,esc,pageId:id,vehicleId:marketplaceRoute()[2]});window.scrollTo(0,0);}else if(p==='part')part(id);else if(p==='login')login();else if(p==='sell')sell();else if(p==='orders')orders();else if(p==='return')returnForm(id);else if(p==='referrals')referrals();else if(p==='feedback')feedback();else if(p==='review')reviewOrder(id);else if(p==='owner')owner();else if(['about','shipping','privacy','terms','legal','advertising'].includes(p)){
    publicInfo(p==='legal'?'terms':p);
    if(p==='about')window.scrollTo({top:0,behavior:'instant'});
   }else home();

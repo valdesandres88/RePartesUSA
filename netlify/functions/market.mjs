@@ -69,7 +69,7 @@ export async function handler(event){
   }
   if(method==='GET'&&action==='site'){
    const [settings,items]=await Promise.all([
-    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,support_email,social_links,adsense_publisher_id,adsense_enabled,monetization_offers').eq('id',1).single(),
+    d.from('site_settings').select('hero_title,hero_subtitle,announcement,commission_bps,payments_enabled,social_links,adsense_publisher_id,adsense_enabled,monetization_offers').eq('id',1).single(),
     d.from('listings').select('id,seller_id,title,description,make,model,year_min,year_max,part_number,condition,price_cents,image_url,public_contact_enabled,contact_email,contact_phone,created_at').eq('status','approved').eq('inventory_verified_by_owner',true).order('created_at',{ascending:false}).limit(100)
    ]);
    const conf=unwrap(settings),listings=unwrap(items),ids=[...new Set(listings.map(x=>x.seller_id))];
