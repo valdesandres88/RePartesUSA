@@ -540,9 +540,8 @@ function publicInfo(kind){
   ]}
  };
  const p=pages[kind]||pages.terms;
- const nav='<div class="policy-nav"><a href="#about">Sobre nosotros</a> · <a href="#contact">Contacto</a> · <a href="#shipping">Envíos y devoluciones</a> · <a href="#privacy">Privacidad</a> · <a href="#terms">Términos</a></div>';
  const body=p.sections.join('').replaceAll('%%EMAIL%%',support);
- layout('<section class="section"><div class="eyebrow">INFORMACIÓN DEL MARKETPLACE</div><h1>'+esc(p.title)+'</h1><div class="panel policy-copy">'+body+'</div>'+nav+'</section>');
+ layout('<section class="section"><div class="eyebrow">INFORMACIÓN DEL MARKETPLACE</div><h1>'+esc(p.title)+'</h1><div class="panel policy-copy">'+body+'</div></section>');
 }
 let version=0;
 async function route(){
