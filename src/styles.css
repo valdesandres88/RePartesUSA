@@ -309,3 +309,67 @@
 #catalog-share{margin-bottom:14px}
 #catalog-share[hidden]{display:none}
 #catalog-share button{min-height:44px}
+
+
+/* Amazon discovery feature: compact storefront card, not an oversized editorial banner. */
+.amazon-feature{
+ display:grid;
+ grid-template-columns:minmax(0,1fr) auto;
+ align-items:center;
+ gap:24px;
+ margin-top:20px;
+ margin-bottom:24px;
+ padding:clamp(22px,3.5vw,38px);
+ background:#fff;
+ border:1px solid #d9e5dc;
+ border-radius:18px;
+ box-shadow:0 8px 26px #163b2b0b;
+}
+.amazon-feature-copy{min-width:0}
+.amazon-feature .amazon-feature-kicker{
+ display:block;
+ margin-bottom:9px;
+ color:#287251;
+ font-size:11px;
+ font-weight:800;
+ letter-spacing:.1em;
+ text-transform:uppercase;
+}
+.amazon-feature h2{
+ max-width:29ch;
+ margin:0 0 10px;
+ font-size:clamp(1.45rem,2.6vw,2.1rem);
+ line-height:1.17;
+ letter-spacing:-.035em;
+ text-wrap:balance;
+}
+.amazon-feature p{
+ max-width:59ch;
+ margin:0;
+ color:#536b61;
+ font-size:clamp(.94rem,1.35vw,1rem);
+ line-height:1.6;
+}
+.amazon-feature .amazon-feature-link{
+ display:inline-flex;
+ align-items:center;
+ justify-content:center;
+ gap:12px;
+ min-height:48px;
+ padding:12px 19px;
+ border-radius:10px;
+ background:#174d3b;
+ color:#fff;
+ font-size:14px;
+ font-weight:750;
+ white-space:nowrap;
+ box-shadow:none;
+}
+.amazon-feature .amazon-feature-link:hover{background:#236b50;color:#fff}
+.amazon-feature .amazon-feature-link:focus-visible{outline:3px solid #9bd37c;outline-offset:3px}
+.amazon-feature .amazon-feature-link span{font-size:19px;line-height:1}
+@media(max-width:760px){
+ .amazon-feature{grid-template-columns:minmax(0,1fr);gap:18px;padding:22px 20px;margin-inline:16px}
+ .amazon-feature .amazon-feature-link{justify-self:stretch}
+ .amazon-feature h2{font-size:clamp(1.42rem,5vw,1.9rem)}
+}
