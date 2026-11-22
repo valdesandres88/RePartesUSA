@@ -27,3 +27,23 @@ test('Standalone guide returns to its internal referring page',()=>{
 test('Back at a directly opened home page scrolls up',()=>{
  const s=setup({hash:'#home'});s.click();assert.equal(s.scrolled(),true);
 });
+
+
+test('Mobile menu uses a compact navigation with a dedicated close action',()=>{
+ const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+ const css=readFileSync(new URL('../src/styles.css',import.meta.url),'utf8');
+ assert.match(main,/class="market-menu-title"/);
+ assert.match(main,/data-menu-close/);
+ assert.match(main,/href="#amazon-parts"/);
+ assert.match(css,/\.market-header \.market-menu nav\{[\s\S]*?flex-direction:column/);
+ assert.match(css,/\.market-menu:not\(\[open\]\) nav\{display:none\}/);
+});
+
+test('Menu survives rerenders and view state is saved for Safari interruptions',()=>{
+ const main=readFileSync(new URL('../src/main.js',import.meta.url),'utf8');
+ assert.match(main,/menuWasOpen/);
+ assert.match(main,/rebuiltMenu\.open=true/);
+ assert.match(main,/visibilitychange/);
+ assert.match(main,/sessionStorage\.setItem\(viewRecoveryKey/);
+ assert.match(main,/restoreViewState\(\)/);
+});
