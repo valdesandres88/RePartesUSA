@@ -1,5 +1,6 @@
 (()=>{
  const key='repartes:analytics-session:v1';
+ const ownerDeviceKey='repartes:owner-analytics-excluded:v1';
  const idleMs=30*60*1000;
  const routes=new Set('home catalog part login sell orders return review feedback referrals about contact shipping privacy terms advertising'.split(' '));
  const names=['google','bing','tiktok','facebook','instagram','threads','x','telegram','youtube','pinterest','reddit','email'];
@@ -39,6 +40,12 @@
   (navigator.platform==='MacIntel'&&navigator.maxTouchPoints>1)?'mobile':'desktop';
  let currentSession;
  try{currentSession=JSON.parse(sessionStorage.getItem(key));}catch{}
+ // The main app verifies identity before sending any analytics events.
+ // Once a server-verified owner signs in, this browser stays excluded.
+ let identityReady=!['/','/index.html'].includes(location.pathname);
+ let excluded=false;
+ try{excluded=localStorage.getItem(ownerDeviceKey)==='1';}catch{}
+ const pending=[];
  function getSession(){
   const now=Date.now();
   if(!currentSession?.id||!Number.isFinite(currentSession.last)||now-currentSession.last>=idleMs||
@@ -50,14 +57,33 @@
   return currentSession;
  }
 
- function track(kind){
-  const page=currentPage();
-  if(!page||navigator.globalPrivacyControl||navigator.doNotTrack==='1'||!globalThis.crypto?.randomUUID)return;
+ function send(kind,page){
+  if(excluded)return;
   const session=getSession();
   const body=JSON.stringify({id:crypto.randomUUID(),session_id:session.id,page,kind,source:session.source,device});
   void fetch('/api/market?action=analytics.event',{
    method:'POST',keepalive:true,credentials:'omit',headers:{'Content-Type':'application/json'},body
   }).catch(()=>{});
+ }
+ function track(kind){
+  const page=currentPage();
+  if(!page||excluded||navigator.globalPrivacyControl||navigator.doNotTrack==='1'||!globalThis.crypto?.randomUUID)return;
+  if(!identityReady){
+   if(pending.length<100)pending.push({kind,page});
+   return;
+  }
+  send(kind,page);
+ }
+ function resolveIdentity(isOwner){
+  if(isOwner){
+   excluded=true;
+   pending.length=0;
+   try{localStorage.setItem(ownerDeviceKey,'1');}catch{}
+   return;
+  }
+  if(excluded)return;
+  identityReady=true;
+  for(const item of pending.splice(0))send(item.kind,item.page);
  }
 
  let lastView, lastComparison;
@@ -73,7 +99,7 @@
   track('quote_open');
  }
 
- window.repartesAnalytics={track,quoteOpened};
+ window.repartesAnalytics={track,quoteOpened,resolveIdentity};
  view();
  window.addEventListener('hashchange',view);
  document.addEventListener('click',ev=>{
