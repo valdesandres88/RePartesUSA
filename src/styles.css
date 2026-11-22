@@ -373,3 +373,48 @@
  .amazon-feature .amazon-feature-link{justify-self:stretch}
  .amazon-feature h2{font-size:clamp(1.42rem,5vw,1.9rem)}
 }
+
+
+/* Compact vertical storefront navigation, including narrow iPhone viewports. */
+.market-menu{position:relative;flex:0 0 auto}
+.market-menu summary{gap:9px;padding:0 15px;border:1px solid #738d84;border-radius:10px;background:#21463b;color:#fff;user-select:none}
+.market-menu summary::marker{content:''}
+.market-menu summary:hover,.market-menu[open] summary{background:#315b4d}
+.market-menu summary:focus-visible{outline:3px solid #ddf675;outline-offset:3px}
+.menu-hamburger{display:flex;flex-direction:column;justify-content:center;gap:4px;width:18px;height:18px}
+.menu-hamburger span{display:block;width:18px;height:2px;background:currentColor;border-radius:2px}
+.market-header .market-menu nav{
+ position:absolute;right:0;top:calc(100% + 10px);
+ width:min(385px,calc(100vw - 24px));max-height:min(76dvh,690px);
+ display:flex;flex-direction:column;flex-wrap:nowrap;gap:0;
+ padding:7px 16px 14px;overflow-y:auto;overscroll-behavior:contain;
+ background:#fff;color:#18382e;border:1px solid #d6e2da;border-radius:14px;
+ box-shadow:0 20px 55px #071d1680;text-align:left;
+}
+.market-menu:not([open]) nav{display:none}
+.market-menu-title{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:5px 0 8px;border-bottom:1px solid #e5ece6}
+.market-menu-title strong{font-size:15px;letter-spacing:-.02em;color:#193f31}
+.market-menu-title .market-menu-close{display:grid;place-items:center;flex:0 0 34px;width:34px;height:34px;min-height:34px;padding:0;border:0;border-radius:8px;background:#f0f4f0;color:#274b3d;font-size:24px;font-weight:400}
+.market-menu nav section{display:flex;flex-direction:column;gap:0;min-width:0;padding:11px 0 7px;border-bottom:1px solid #e6eee9}
+.market-menu nav section:last-child{grid-column:auto;border-top:0;border-bottom:1px solid #e6eee9;padding-top:11px}
+.market-menu nav strong{margin:0 0 5px;padding:0 8px;color:#557466;font:800 10px/1.4 'DM Sans',system-ui,sans-serif;letter-spacing:.11em;text-transform:uppercase}
+.market-header .market-menu nav a,.market-menu nav button.menu-signout{
+ position:relative;display:flex;align-items:center;justify-content:space-between;
+ width:100%;min-height:43px;padding:9px 11px;background:transparent;color:#183b2d;
+ border:0;border-radius:8px;text-align:left;font:650 14px/1.35 'DM Sans',system-ui,sans-serif;
+}
+.market-header .market-menu nav a::after{content:'›';margin-left:12px;color:#789486;font-size:21px;font-weight:400;line-height:1}
+.market-menu nav a small{margin-left:auto;margin-right:10px;font-size:10px;letter-spacing:0;white-space:nowrap}
+.market-menu nav a:hover,.market-menu nav button.menu-signout:hover{background:#eef5ef;color:#135b43}
+.market-menu nav a:focus-visible,.market-menu nav button:focus-visible,.market-menu nav select:focus-visible{outline:2px solid #178368;outline-offset:1px}
+.market-menu nav .menu-signout{color:#976039;border:0;cursor:pointer}
+.market-menu-language{padding:12px 5px 3px}
+.market-menu-language .language-label{width:100%;justify-content:space-between;gap:12px;margin:0;color:#4e6b5e;font-size:12px}
+.market-menu-language .language-label select{max-width:155px;min-height:40px;padding:8px 12px;font-size:14px}
+@media(max-width:540px){
+ .header.market-header{gap:7px;padding:10px 12px}
+ .market-header .logo{font-size:clamp(15px,3.9vw,19px)}
+ .market-header .request-launcher{font-size:12px;padding:9px 11px}
+ .market-menu summary{padding:0 11px;font-size:13px;min-height:44px}
+ .market-header .market-menu nav{right:-1px;max-height:calc(100dvh - 115px);width:min(385px,calc(100vw - 24px))}
+}
