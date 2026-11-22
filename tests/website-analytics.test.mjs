@@ -19,22 +19,25 @@ test('Analytics accepts only known fields and skips crawler traffic',()=>{
  assert.throws(()=>reportDays('365'),{status:400});
 });
 
-function browser({path='/',hash='#home',search='',referrer='',gpc=false}={}){
- const calls=[],listeners={},storage=new Map(),window={addEventListener:(type,fn)=>{listeners[type]=fn}};
+function browser({path='/',hash='#home',search='',referrer='',gpc=false,ownerDevice=false}={}){
+ const calls=[],listeners={},storage=new Map(),deviceStorage=new Map(ownerDevice?[['repartes:owner-analytics-excluded:v1','1']]:[]),window={addEventListener:(type,fn)=>{listeners[type]=fn}};
  const location={pathname:path,hash,search,hostname:'repartesusa-marketplace.netlify.app'};
  let now=1_000_000;
  runInNewContext(browserSource,{
   window,location,document:{referrer,addEventListener(){}},
   navigator:{userAgent:'iPhone',globalPrivacyControl:gpc},
   sessionStorage:{getItem:key=>storage.get(key)||null,setItem:(key,value)=>storage.set(key,value)},
+  localStorage:{getItem:key=>deviceStorage.get(key)||null,setItem:(key,value)=>deviceStorage.set(key,value)},
   fetch:async (_url,options)=>{calls.push(JSON.parse(options.body));},
   Date:{now:()=>now},crypto:{randomUUID},URL,URLSearchParams
  });
- return {window,location,calls,view:listeners.hashchange,advance:milliseconds=>{now+=milliseconds}};
+ return {window,location,calls,view:listeners.hashchange,resolveIdentity:isOwner=>window.repartesAnalytics.resolveIdentity(isOwner),deviceStorage,advance:milliseconds=>{now+=milliseconds}};
 }
 
 test('Public page changes and searches share one session until it has been idle',()=>{
  const b=browser({search:'?utm_source=tiktok&other=private'});
+ assert.equal(b.calls.length,0,'wait for a verified identity before sending the initial page view');
+ b.resolveIdentity(false);
  b.location.hash='#part/private-listing-id';
  b.view();
  b.view();
@@ -63,4 +66,37 @@ test('Owner pages and opted-out browsers do not report traffic, and quote tokens
  const guide=browser({path:'/guides/comprar-piezas-usadas.html',referrer:'https://l.facebook.com/private'});
  assert.equal(guide.calls[0].source,'facebook');
  assert.equal(guide.calls[0].page,'guide_es');
+});
+
+test('Owner sign-in suppresses the initial page view and all subsequent activity',()=>{
+ const b=browser();
+ b.location.hash='#catalog';b.view();
+ b.window.repartesAnalytics.track('search');
+ assert.equal(b.calls.length,0,'events must wait for authentication');
+ b.resolveIdentity(true);
+ b.location.hash='#about';b.view();
+ b.window.repartesAnalytics.track('partner_click');
+ assert.deepEqual(b.calls,[]);
+ assert.equal(b.deviceStorage.get('repartes:owner-analytics-excluded:v1'),'1');
+});
+
+test('A previously verified owner device remains excluded even while signed out',()=>{
+ const b=browser({ownerDevice:true});
+ b.resolveIdentity(false);
+ b.location.hash='#catalog';b.view();
+ b.window.repartesAnalytics.track('search');
+ assert.deepEqual(b.calls,[]);
+ const guide=browser({ownerDevice:true,path:'/guides/used-auto-parts.html'});
+ assert.deepEqual(guide.calls,[]);
+});
+
+test('Queued visits and searches from real visitors retain the original pages',()=>{
+ const b=browser({hash:'#home'});
+ b.location.hash='#catalog';b.view();
+ b.window.repartesAnalytics.track('search');
+ assert.equal(b.calls.length,0);
+ b.resolveIdentity(false);
+ assert.deepEqual(b.calls.map(x=>[x.page,x.kind]),[['home','view'],['catalog','view'],['catalog','search']]);
+ b.resolveIdentity(false);
+ assert.equal(b.calls.length,3,'verification must not send queued events twice');
 });
