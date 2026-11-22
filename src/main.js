@@ -342,7 +342,14 @@ function home(){
    <section class="panel" id="marketplace-search">${marketplaceSearchLinks()}</section>
   </section>
   ${localMapMarkup(currentLanguage==='es',commercialOffers('map'))}
-  <aside class="section seller-invite"><div><h2>Amazon Auto Parts Guide</h2><p>Explore 50 maintenance and repair categories for 2026 and 2027.</p></div><a class="primary" href="#amazon-parts">Browse Amazon Auto Parts</a></aside>
+  <aside class="section seller-invite amazon-feature" aria-labelledby="amazon-feature-title">
+   <div class="amazon-feature-copy">
+    <span class="amazon-feature-kicker">${currentLanguage==='es'?'PIEZAS Y ACCESORIOS':'PARTS & ACCESSORIES'}</span>
+    <h2 id="amazon-feature-title">${currentLanguage==='es'?'Encuentra piezas para tu próximo arreglo':'Find parts for your next repair'}</h2>
+    <p>${currentLanguage==='es'?'Explora piezas de mantenimiento y reparación por categoría. Compara opciones en Amazon y verifica la compatibilidad antes de comprar.':'Browse maintenance and repair parts by category. Compare options on Amazon and confirm fitment before you buy.'}</p>
+   </div>
+   <a class="primary amazon-feature-link" href="#amazon-parts">${currentLanguage==='es'?'Explorar categorías':'Browse part categories'} <span aria-hidden="true">→</span></a>
+  </aside>
   ${partToolsCard()}
   <section class="section buyer-section">
    <h2>Auto parts buying guide</h2>
