@@ -124,7 +124,42 @@ window.addEventListener('pagehide',saveOfferDraft);
 const languageSelector=()=>`<label class="language-label">Language / Idioma <select id="language" aria-label="Website language">${LANGUAGES.map(([code,name])=>`<option value="${code}" ${currentLanguage===code?'selected':''}>${name}</option>`).join('')}</select></label>`;
 const backButton=()=>`<button type="button" data-back-button aria-label="${currentLanguage==='es'?'Volver a la página anterior':'Go back to the previous page'}">${currentLanguage==='es'?'← Volver':'← Back'}</button>`;
 let stopOwnerAnalytics;
+const viewRecoveryKey='repartes:mobile-view-recovery:v1';
+function saveViewState(){
+ if(isOwnerPage||isQuotePage)return;
+ try{
+  sessionStorage.setItem(viewRecoveryKey,JSON.stringify({
+   url:location.pathname+location.search+location.hash,
+   scrollY:window.scrollY,
+   menuOpen:document.querySelector('.market-menu')?.open===true,
+   savedAt:Date.now()
+  }));
+ }catch{}
+}
+function restoreViewState(){
+ if(isOwnerPage||isQuotePage)return;
+ try{
+  const saved=JSON.parse(sessionStorage.getItem(viewRecoveryKey)||'null');
+  sessionStorage.removeItem(viewRecoveryKey);
+  if(!saved||saved.url!==location.pathname+location.search+location.hash||Date.now()-saved.savedAt>120000)return;
+  if(saved.menuOpen){
+   const menu=document.querySelector('.market-menu');
+   if(menu)menu.open=true;
+  }
+  if(Number.isFinite(saved.scrollY)&&saved.scrollY>=0){
+   requestAnimationFrame(()=>window.scrollTo({top:saved.scrollY,behavior:'instant'}));
+  }
+ }catch{}
+}
+window.addEventListener('pagehide',saveViewState);
+document.addEventListener('visibilitychange',()=>{
+ if(document.visibilityState==='hidden')saveViewState();
+ else if(document.visibilityState==='visible'){
+  try{sessionStorage.removeItem(viewRecoveryKey)}catch{}
+ }
+});
 function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute()[0])}={}){
+ const menuWasOpen=document.querySelector('.market-menu')?.open===true;
  stopOwnerAnalytics?.();
  stopOwnerAnalytics=undefined;
  saveOfferDraft();
@@ -135,13 +170,16 @@ function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute
   return;
  }
  const es=currentLanguage==='es';
- const account=S.session?'<a href="#orders">Mis pedidos</a><button data-act="logout">Salir</button>':'<a href="#login">Iniciar sesión</a><a href="#login/signup">Sign up</a>';
+ const account=S.session?'<a href="#orders">Mis pedidos</a><button type="button" class="menu-signout" data-act="logout">Salir</button>':'<a href="#login">Iniciar sesión</a><a href="#login/signup">Sign up</a>';
  app.innerHTML=`<header class="header market-header"><a href="#home" class="logo"><span class="logo-mark" aria-hidden="true">R</span> REPARTES <em>USA</em></a>
  <button type="button" class="request-launcher" data-request-part>Request a part</button>
- <details class="market-menu"><summary><span aria-hidden="true">☰</span> ${es?'Menú':'Menu'}</summary><nav aria-label="${es?'Menú principal':'Main menu'}">
- <section><strong>${es?'Mercado':'Marketplace'}</strong><a href="#home">Explorar piezas</a><a href="#sell">Vender</a><a href="#home/map">${es?'Mapa local':'Local map'}</a></section>
- <section><strong>${es?'Mi cuenta':'My account'}</strong>${account}<a href="#referrals">Referidos</a></section>
- <section><strong>${es?'Ayuda y preferencias':'Help & settings'}</strong><a href="#careers">Careers (Coming soon)</a><a href="#contact/support">${es?'Soporte':'Support'}</a>${languageSelector()}</section>
+ <details class="market-menu"><summary aria-label="${es?'Abrir menú de navegación':'Open navigation menu'}"><span class="menu-hamburger" aria-hidden="true"><span></span><span></span><span></span></span><span>${es?'Menú':'Menu'}</span></summary>
+ <nav aria-label="${es?'Menú principal':'Main menu'}">
+  <div class="market-menu-title"><strong>${es?'Explorar RePartes USA':'Explore RePartes USA'}</strong><button type="button" class="market-menu-close" data-menu-close aria-label="${es?'Cerrar menú':'Close menu'}">×</button></div>
+  <section><strong>${es?'Comprar y vender':'Shop & sell'}</strong><a href="#home">Explorar piezas</a><a href="#amazon-parts">Amazon Auto Parts</a><a href="#sell">Vender</a><a href="#home/map">${es?'Mapa local':'Local map'}</a></section>
+  <section><strong>${es?'Mi cuenta':'My account'}</strong>${account}<a href="#referrals">Referidos</a></section>
+  <section><strong>${es?'Información y ayuda':'Help & company'}</strong><a href="#about">Sobre nosotros</a><a href="#contact/support">${es?'Soporte':'Support'}</a><a href="#careers">${es?'Empleos':'Careers'} <small>${es?'Próximamente':'Coming soon'}</small></a></section>
+  <div class="market-menu-language">${languageSelector()}</div>
  </nav></details></header>${showBack?`<div class="page-navigation">${backButton()}</div>`:''}<main>${inner}</main><footer class="market-footer">
   <div class="footer-inner">
    <div class="footer-top">
@@ -171,12 +209,20 @@ function layout(inner,{showBack=!['','home','catalog'].includes(marketplaceRoute
   </div>
  </footer>`;
  localize(app,currentLanguage);
+ const rebuiltMenu=app.querySelector('.market-menu');
+ if(menuWasOpen&&rebuiltMenu)rebuiltMenu.open=true;
  restoreOfferDraft();
  document.dispatchEvent(new Event('repartes:page'));
 }
 document.addEventListener('click',event=>{
  const menu=document.querySelector('.market-menu[open]');
- if(menu && (!menu.contains(event.target)||event.target.closest('nav a, nav button')))menu.open=false;
+ if(!menu)return;
+ if(event.target.closest('[data-menu-close]')){
+  menu.open=false;
+  menu.querySelector('summary')?.focus();
+  return;
+ }
+ if(!menu.contains(event.target)||event.target.closest('nav a, nav button'))menu.open=false;
 });
 document.addEventListener('keydown',event=>{
  const menu=document.querySelector('.market-menu[open]');
@@ -846,5 +892,6 @@ window.addEventListener('hashchange',route);
    setTimeout(async()=>{try{await refreshIdentity();await claimRef();await route()}catch(err){toast(err.message)}},0);
   });
   await route();
+  restoreViewState();
  }catch(err){layout('<section class="section empty"><h2>No fue posible conectar RePartes USA</h2><p>'+esc(err.message)+'</p><button data-act="retry" data-reload>Reintentar</button></section>')}
 })();
