@@ -594,7 +594,10 @@ async function route(){
 async function refreshIdentity(){
  const userId=S.session?.user?.id;
  const identity=S.session?await api('me'):null;
- if(S.session?.user?.id===userId)S.me=identity;
+ if(S.session?.user?.id===userId){
+  S.me=identity;
+  window.repartesAnalytics?.resolveIdentity(S.me?.is_owner===true);
+ }
 }
 async function refreshCatalog(){S.site=await api('site')}
 async function loadPublicCatalog(){
@@ -752,7 +755,7 @@ document.addEventListener('submit',async ev=>{
   }
   if(f.id==='socialsettings'){const links={};for(const [k] of SOCIAL_NETWORKS)links[k]=String(v[k]||'').trim();await api('admin.socials','POST',{links});toast('Official social links saved.');await refreshCatalog()}
   if(f.id==='review'){await api('review.submit','POST',{subject:f.dataset.subject,order_id:f.dataset.id,...v,rating:Number(v.rating)});toast('Review submitted. It will appear after moderation.');location.hash=f.dataset.subject==='website'?'#home':'#orders'}
-  if(f.id==='signin'){const destination=marketplaceRoute()[0]==='sell'?'#sell':'#home';const {error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;if(isOwnerPage)await refreshIdentity();else location.hash=destination}
+  if(f.id==='signin'){const destination=marketplaceRoute()[0]==='sell'?'#sell':'#home';const {data,error}=await sb.auth.signInWithPassword({email:v.email,password:v.password});if(error)throw error;S.session=data.session;await refreshIdentity();if(!isOwnerPage)location.hash=destination}
   if(f.id==='signup'){if(v.password.length<10)throw Error('Contraseña demasiado corta');const {data,error}=await sb.auth.signUp({email:v.email,password:v.password,options:{data:{display_name:v.display_name,...(pendingRef()?{referral_code:pendingRef()}:{})}}});if(error)throw error;toast(data.session?'Cuenta creada':'Verifica tu correo electrónico');if(data.session)location.hash=marketplaceRoute()[0]==='sell'?'#sell':'#home'}
   if(f.id==='seller'){const r=await api('seller.apply','POST',v);await refreshIdentity();toast(r.owner_store?'Your own store is ready. Upload original photos of your parts.':'We received your seller application. Check the Seller Center for your approval status.')}
   if(f.id==='returnrequest'){await api('return.request','POST',{order_id:f.dataset.id,...v});toast('We received your return request. Check My orders for updates before shipping the part back.');location.hash='#orders'}
@@ -809,7 +812,7 @@ if(!isOwnerPage&&!isQuotePage)mountPartRequests({submit:data=>api('quote.submit'
 window.addEventListener('hashchange',route);
 (async()=>{
  if(isQuotePage){await route();return;}
- if(!sb){layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
+ if(!sb){window.repartesAnalytics?.resolveIdentity(false);layout('<section class="section empty"><h2>Configuración de Supabase pendiente</h2><p>Define las variables públicas VITE_SUPABASE_URL y VITE_SUPABASE_PUBLISHABLE_KEY en Netlify para conectar el catálogo y las cuentas.</p></section>');return}
  try{
   const {data}=await sb.auth.getSession();S.session=data.session;
   if(recoveryCallback){
